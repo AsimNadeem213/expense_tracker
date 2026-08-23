@@ -128,6 +128,15 @@ fun GroupDetailScreen(
         )
     }
 
+    val currentUserId = state.currentUserId
+    val isGroupCreator = if (group == null || group.createdBy.isBlank()) false else when {
+        currentUserId.isNotBlank() && group.createdBy == currentUserId -> true
+        else -> {
+            val currentMember = group.members.find { it.isCurrentUser || (currentUserId.isNotBlank() && it.id == currentUserId) }
+            currentMember != null && currentMember.id == group.createdBy
+        }
+    }
+
     Scaffold(
         topBar = {
             ExpenseMateTopBar(
@@ -138,6 +147,18 @@ fun GroupDetailScreen(
                     if (group != null) {
                         IconButton(onClick = { showQrDialog = true }) {
                             Icon(Icons.Filled.QrCode2, contentDescription = "Show Group QR Code")
+                        }
+                        if (isGroupCreator) {
+                            IconButton(onClick = { onNavigateToEditGroup(group.id) }) {
+                                Icon(Icons.Filled.Edit, contentDescription = "Edit Group")
+                            }
+                            IconButton(onClick = { showDeleteDialog = true }) {
+                                Icon(
+                                    Icons.Filled.Delete,
+                                    contentDescription = "Delete Group",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
                         }
                     }
                 }

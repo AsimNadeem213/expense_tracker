@@ -31,5 +31,8 @@ sealed class Screen(val route: String) {
         }
     }
     object Profile : Screen("profile")
+    object Reports : Screen("reports")
     object QrScanner : Screen("qr_scanner")
+    object Splash : Screen("splash")
+    object Onboarding : Screen("onboarding")
 }

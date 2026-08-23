@@ -31,7 +31,25 @@ object DebtSimplifier {
             val payerId = expense.paidByUserId
             balanceMap[payerId] = (balanceMap[payerId] ?: 0.0) + expense.amount
 
-            for (split in expense.splits) {
+            val effectiveSplits = if (expense.splits.isNotEmpty()) {
+                expense.splits
+            } else if (members.isNotEmpty()) {
+                val perPersonRaw = expense.amount / members.size
+                val perPerson = (perPersonRaw * 100).roundToInt() / 100.0
+                val remainder = expense.amount - (perPerson * members.size)
+                members.mapIndexed { index, user ->
+                    val extra = if (index == 0) (remainder * 100).roundToInt() / 100.0 else 0.0
+                    com.asim.splitmate.domain.model.Split(
+                        userId = user.id,
+                        userName = user.name,
+                        amount = perPerson + extra
+                    )
+                }
+            } else {
+                emptyList()
+            }
+
+            for (split in effectiveSplits) {
                 balanceMap[split.userId] = (balanceMap[split.userId] ?: 0.0) - split.amount
             }
         }

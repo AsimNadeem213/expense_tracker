@@ -22,7 +22,9 @@ class AddExpenseUseCase(
         selectedMembers: List<User>,
         splitType: SplitType,
         customSplits: List<Split>,
-        notes: String = ""
+        notes: String = "",
+        date: Long = System.currentTimeMillis(),
+        existingExpenseId: String? = null
     ): Resource<Expense> {
         if (title.isBlank()) return Resource.Error("Expense title cannot be empty")
         if (amount <= 0.0) return Resource.Error("Expense amount must be greater than zero")
@@ -35,20 +37,34 @@ class AddExpenseUseCase(
             customSplits = customSplits
         )
 
+        val isEditMode = !existingExpenseId.isNullOrBlank()
+        val expId = existingExpenseId?.takeIf { it.isNotBlank() }
+            ?: ("exp_" + UUID.randomUUID().toString().take(8))
+
+        var originalCreatedBy = paidByUser.id
+        if (isEditMode) {
+            val existing = expenseRepository.getExpenseById(expId)
+            if (existing != null && existing.createdBy.isNotBlank()) {
+                originalCreatedBy = existing.createdBy
+            }
+        }
+
         val expense = Expense(
-            id = "exp_" + UUID.randomUUID().toString().take(8),
+            id = expId,
             groupId = groupId,
             title = title.trim(),
             amount = amount,
             category = category,
             paidByUserId = paidByUser.id,
             paidByUserName = paidByUser.name,
-            date = System.currentTimeMillis(),
+            date = date,
             splitType = splitType,
             splits = computedSplits,
-            notes = notes
+            notes = notes,
+            createdBy = originalCreatedBy,
+            isEdited = isEditMode
         )
 
-        return expenseRepository.addExpense(expense)
+        return if (isEditMode) expenseRepository.updateExpense(expense) else expenseRepository.addExpense(expense)
     }
 }

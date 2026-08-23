@@ -30,6 +30,8 @@ import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.dsl.module
 
+import com.asim.splitmate.feature.reports.ReportViewModel
+
 val appModule = module {
 
     // Dispatchers
@@ -54,7 +56,7 @@ val appModule = module {
     single { RealtimeDatabaseDataSource() }
 
     // Repositories
-    single<AuthRepository> { AuthRepositoryImpl(get(), get()) }
+    single<AuthRepository> { AuthRepositoryImpl(get(), get(), get(), androidContext()) }
     single<GroupRepository> { GroupRepositoryImpl(get(), get(), get(), get(), get()) }
     single<ExpenseRepository> { ExpenseRepositoryImpl(get(), get()) }
     single<SettlementRepository> { SettlementRepositoryImpl(get(), get()) }
@@ -63,14 +65,15 @@ val appModule = module {
     // Use Cases
     factory { AddExpenseUseCase(get()) }
     factory { CalculateGroupBalancesUseCase(get(), get(), get()) }
-    factory { GetDashboardDataUseCase(get(), get(), get()) }
+    factory { GetDashboardDataUseCase(get(), get(), get(), get(), get(), get(), get()) }
 
     // ViewModels
     viewModel { AuthViewModel(get()) }
     viewModel { DashboardViewModel(get(), get(), get()) }
-    viewModel { GroupViewModel(get(), get(), get(), get()) }
+    viewModel { GroupViewModel(get(), get(), get(), get(), get()) }
     viewModel { ExpenseViewModel(get(), get(), get(), get()) }
     viewModel { BalancesViewModel(get(), get(), get()) }
     viewModel { SettlementViewModel(get(), get()) }
-    viewModel { ProfileViewModel(get(), get()) }
+    viewModel { ProfileViewModel(get(), get(), get(), get(), get()) }
+    viewModel { ReportViewModel(get(), get()) }
 }

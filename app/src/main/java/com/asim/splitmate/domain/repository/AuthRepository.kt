@@ -8,6 +8,6 @@ interface AuthRepository {
     fun getCurrentUser(): Flow<User?>
     suspend fun login(email: String, pass: String): Resource<User>
     suspend fun register(name: String, email: String, pass: String): Resource<User>
-    suspend fun loginAsGuest(name: String = "Guest User"): Resource<User>
+    suspend fun loginAsGuest(name: String = "Guest User", email: String = ""): Resource<User>
     suspend fun logout()
 }

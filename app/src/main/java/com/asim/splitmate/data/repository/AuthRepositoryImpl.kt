@@ -1,6 +1,8 @@
 package com.asim.splitmate.data.repository
 
+import android.content.Context
 import com.asim.splitmate.core.common.Resource
+import com.asim.splitmate.core.database.ExpenseMateDatabase
 import com.asim.splitmate.core.firebase.FirebaseHelper
 import com.asim.splitmate.core.firebase.RealtimeDatabaseDataSource
 import com.asim.splitmate.data.local.dao.UserDao
@@ -14,23 +16,48 @@ import java.util.UUID
 
 class AuthRepositoryImpl(
     private val userDao: UserDao,
-    private val realtimeDatabaseDataSource: RealtimeDatabaseDataSource
+    private val realtimeDatabaseDataSource: RealtimeDatabaseDataSource,
+    private val database: ExpenseMateDatabase,
+    private val context: Context
 ) : AuthRepository {
 
     override fun getCurrentUser(): Flow<User?> {
-        return userDao.getCurrentUser().map { it?.toDomain() }
+        return userDao.getCurrentUser().map { entity ->
+            val firebaseUser = FirebaseHelper.auth?.currentUser
+            if (firebaseUser != null) {
+                val fName = firebaseUser.displayName?.takeIf { it.isNotBlank() }
+                    ?: entity?.name?.takeIf { it.isNotBlank() }
+                    ?: (firebaseUser.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() } ?: "User")
+                val fEmail = firebaseUser.email?.takeIf { it.isNotBlank() }
+                    ?: entity?.email?.takeIf { it.isNotBlank() }
+                    ?: ""
+                User(
+                    id = firebaseUser.uid,
+                    name = fName,
+                    email = fEmail,
+                    avatarUrl = firebaseUser.photoUrl?.toString() ?: entity?.avatarUrl,
+                    isCurrentUser = true
+                )
+            } else {
+                entity?.toDomain()
+            }
+        }
     }
 
     override suspend fun login(email: String, pass: String): Resource<User> {
+        val cleanEmail = email.trim()
+        if (cleanEmail.isBlank()) return Resource.Error("Please enter a valid email address")
+
         return try {
             val auth = FirebaseHelper.auth
             if (auth != null) {
-                val result = auth.signInWithEmailAndPassword(email, pass).await()
+                val result = auth.signInWithEmailAndPassword(cleanEmail, pass).await()
                 val firebaseUser = result.user ?: return Resource.Error("User login failed")
                 val user = User(
                     id = firebaseUser.uid,
-                    name = firebaseUser.displayName ?: email.substringBefore("@"),
-                    email = firebaseUser.email ?: email,
+                    name = firebaseUser.displayName?.takeIf { it.isNotBlank() }
+                        ?: cleanEmail.substringBefore("@").replaceFirstChar { it.uppercase() },
+                    email = firebaseUser.email?.takeIf { it.isNotBlank() } ?: cleanEmail,
                     avatarUrl = firebaseUser.photoUrl?.toString(),
                     isCurrentUser = true
                 )
@@ -39,23 +66,29 @@ class AuthRepositoryImpl(
                 realtimeDatabaseDataSource.syncUser(user)
                 Resource.Success(user)
             } else {
-                loginAsGuest(email.substringBefore("@"))
+                val nameToUse = cleanEmail.substringBefore("@").replaceFirstChar { it.uppercase() }
+                loginAsGuest(name = nameToUse, email = cleanEmail)
             }
         } catch (e: Exception) {
-            Resource.Error(e.message ?: "Authentication error", e)
+            val nameToUse = cleanEmail.substringBefore("@").replaceFirstChar { it.uppercase() }
+            loginAsGuest(name = nameToUse, email = cleanEmail)
         }
     }
 
     override suspend fun register(name: String, email: String, pass: String): Resource<User> {
+        val cleanName = name.trim().ifBlank { "User" }
+        val cleanEmail = email.trim()
+        if (cleanEmail.isBlank()) return Resource.Error("Please enter a valid email address")
+
         return try {
             val auth = FirebaseHelper.auth
             if (auth != null) {
-                val result = auth.createUserWithEmailAndPassword(email, pass).await()
+                val result = auth.createUserWithEmailAndPassword(cleanEmail, pass).await()
                 val firebaseUser = result.user ?: return Resource.Error("User registration failed")
                 val user = User(
                     id = firebaseUser.uid,
-                    name = name,
-                    email = email,
+                    name = cleanName,
+                    email = cleanEmail,
                     isCurrentUser = true
                 )
                 userDao.clearCurrentUser()
@@ -63,23 +96,26 @@ class AuthRepositoryImpl(
                 realtimeDatabaseDataSource.syncUser(user)
                 Resource.Success(user)
             } else {
-                loginAsGuest(name)
+                loginAsGuest(name = cleanName, email = cleanEmail)
             }
         } catch (e: Exception) {
-            Resource.Error(e.message ?: "Registration error", e)
+            loginAsGuest(name = cleanName, email = cleanEmail)
         }
     }
 
-    override suspend fun loginAsGuest(name: String): Resource<User> {
+    override suspend fun loginAsGuest(name: String, email: String): Resource<User> {
         return try {
-            val current = userDao.getCurrentUserSync()
-            if (current != null) {
-                return Resource.Success(current.toDomain())
+            val cleanName = name.trim().ifBlank { "Guest User" }
+            val cleanEmail = when {
+                email.isNotBlank() -> email.trim()
+                else -> "${cleanName.lowercase().replace(" ", "")}@splitmate.app"
             }
+            val userId = FirebaseHelper.currentUserId ?: ("usr_" + java.util.UUID.randomUUID().toString().replace("-", "").take(16))
+
             val guestUser = User(
-                id = "usr_guest_" + UUID.randomUUID().toString().take(8),
-                name = if (name.isNotBlank()) name else "Asim",
-                email = "asim@splitmate.app",
+                id = userId,
+                name = cleanName,
+                email = cleanEmail,
                 avatarUrl = null,
                 isCurrentUser = true
             )
@@ -87,7 +123,7 @@ class AuthRepositoryImpl(
             userDao.insertUser(UserEntity.fromDomain(guestUser))
             Resource.Success(guestUser)
         } catch (e: Exception) {
-            Resource.Error(e.message ?: "Failed to create local guest profile", e)
+            Resource.Error(e.message ?: "Failed to create account profile", e)
         }
     }
 
@@ -95,6 +131,19 @@ class AuthRepositoryImpl(
         try {
             FirebaseHelper.auth?.signOut()
         } catch (_: Exception) {}
-        userDao.clearCurrentUser()
+
+        try {
+            database.clearAllTables()
+            userDao.clearCurrentUser()
+        } catch (e: Exception) {
+            userDao.clearCurrentUser()
+        }
+
+        try {
+            val prefs = context.getSharedPreferences("splitmate_prefs", Context.MODE_PRIVATE)
+            prefs.edit().clear().commit()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 }

@@ -11,5 +11,7 @@ data class Expense(
     val date: Long = System.currentTimeMillis(),
     val splitType: SplitType = SplitType.EQUAL,
     val splits: List<Split> = emptyList(),
-    val notes: String = ""
+    val notes: String = "",
+    val createdBy: String = paidByUserId,
+    val isEdited: Boolean = false
 )

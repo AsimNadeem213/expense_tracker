@@ -7,11 +7,7 @@ object Constants {
     const val DEFAULT_CURRENCY_CODE = "PKR"
 
     val SUPPORTED_CURRENCIES = listOf(
-        CurrencyInfo("PKR", "Rs", "Pakistani Rupee"),
-        CurrencyInfo("INR", "₹", "Indian Rupee"),
-        CurrencyInfo("USD", "$", "US Dollar"),
-        CurrencyInfo("EUR", "€", "Euro"),
-        CurrencyInfo("GBP", "£", "British Pound")
+        CurrencyInfo("PKR", "Rs", "Pakistani Rupee")
     )
 }
 

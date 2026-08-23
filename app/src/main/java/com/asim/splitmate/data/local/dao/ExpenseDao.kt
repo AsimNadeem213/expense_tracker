@@ -19,6 +19,12 @@ interface ExpenseDao {
     @Query("SELECT * FROM expenses ORDER BY date DESC LIMIT :limit")
     fun getRecentExpenses(limit: Int = 10): Flow<List<ExpenseEntity>>
 
+    @Query("SELECT * FROM expenses ORDER BY date DESC")
+    fun getAllExpenses(): Flow<List<ExpenseEntity>>
+
+    @Query("SELECT * FROM expenses ORDER BY date DESC")
+    suspend fun getAllExpensesSync(): List<ExpenseEntity>
+
     @Query("SELECT * FROM expenses WHERE id = :expenseId LIMIT 1")
     suspend fun getExpenseById(expenseId: String): ExpenseEntity?
 

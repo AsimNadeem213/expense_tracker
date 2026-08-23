@@ -39,7 +39,7 @@ import com.asim.splitmate.domain.model.Expense
 @Composable
 fun ExpenseCard(
     expense: Expense,
-    currencySymbol: String = "₹",
+    currencySymbol: String = "Rs:",
     onClick: () -> Unit = {}
 ) {
     Card(
@@ -72,11 +72,29 @@ fun ExpenseCard(
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = expense.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = expense.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    if (expense.isEdited) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
+                                .background(com.asim.splitmate.core.ui.theme.EmeraldPrimary.copy(alpha = 0.15f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "Edited",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = com.asim.splitmate.core.ui.theme.EmeraldPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
                 Text(
                     text = "Paid by ${expense.paidByUserName} • ${DateFormatter.formatRelative(expense.date)}",
                     style = MaterialTheme.typography.bodyMedium,

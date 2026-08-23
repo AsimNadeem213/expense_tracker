@@ -52,6 +52,16 @@ import com.asim.splitmate.core.ui.theme.EmeraldPrimary
 import com.asim.splitmate.core.utils.CurrencyFormatter
 import com.asim.splitmate.domain.model.Category
 import com.asim.splitmate.domain.model.SplitType
+import android.app.DatePickerDialog
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,6 +89,31 @@ fun AddEditExpenseScreen(
     var notes by remember { mutableStateOf("") }
     var paidByExpanded by remember { mutableStateOf(false) }
     var groupExpanded by remember { mutableStateOf(false) }
+
+    val dateFormatter = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
+    val calendar = remember { Calendar.getInstance() }
+
+    val showDatePicker = {
+        calendar.timeInMillis = state.selectedDate
+        val year = calendar.get(Calendar.YEAR)
+        val month = calendar.get(Calendar.MONTH)
+        val day = calendar.get(Calendar.DAY_OF_MONTH)
+
+        DatePickerDialog(
+            context,
+            { _, y, m, d ->
+                val selectedCal = Calendar.getInstance().apply {
+                    set(Calendar.YEAR, y)
+                    set(Calendar.MONTH, m)
+                    set(Calendar.DAY_OF_MONTH, d)
+                }
+                viewModel.setSelectedDate(selectedCal.timeInMillis)
+            },
+            year,
+            month,
+            day
+        ).show()
+    }
 
     LaunchedEffect(state.currentExpense) {
         val exp = state.currentExpense
@@ -192,6 +227,40 @@ fun AddEditExpenseScreen(
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                 )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = dateFormatter.format(Date(state.selectedDate)),
+                        onValueChange = {},
+                        readOnly = true,
+                        enabled = false,
+                        label = { Text("Expense Date *") },
+                        trailingIcon = {
+                            IconButton(onClick = { showDatePicker() }) {
+                                Icon(
+                                    imageVector = Icons.Filled.CalendarToday,
+                                    contentDescription = "Select Date",
+                                    tint = EmeraldPrimary
+                                )
+                            }
+                        },
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                            disabledBorderColor = MaterialTheme.colorScheme.outline,
+                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledTrailingIconColor = EmeraldPrimary
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable { showDatePicker() }
+                    )
+                }
             }
 
             item {
@@ -251,6 +320,31 @@ fun AddEditExpenseScreen(
 
             item {
                 Text(
+                    text = "Split Among Participants",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Tap members to include or exclude them from this expense:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(group?.members ?: emptyList()) { member ->
+                        val isSelected = state.selectedMembers.any { it.id == member.id }
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { viewModel.toggleMemberParticipant(member) },
+                            label = { Text(member.name) }
+                        )
+                    }
+                }
+            }
+
+            item {
+                Text(
                     text = "Split Type",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
@@ -271,39 +365,206 @@ fun AddEditExpenseScreen(
             }
 
             item {
-                Text(
-                    text = "Split Allocation Preview",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
-                val amount = amountText.toDoubleOrNull() ?: 0.0
-                val count = state.selectedMembers.size.coerceAtLeast(1)
-                val perPerson = if (amount > 0) amount / count else 0.0
+                val totalAmount = amountText.toDoubleOrNull() ?: 0.0
+                val selectedMembers = state.selectedMembers
 
-                state.selectedMembers.forEach { member ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = member.name,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Text(
-                                text = CurrencyFormatter.format(perPerson, currencySymbol),
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = EmeraldPrimary
-                            )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Split Allocation Details",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+
+                when (state.splitType) {
+                    SplitType.EQUAL -> {
+                        val count = selectedMembers.size.coerceAtLeast(1)
+                        val perPerson = if (totalAmount > 0) totalAmount / count else 0.0
+                        selectedMembers.forEach { member ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = member.name,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        text = CurrencyFormatter.format(perPerson, currencySymbol),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = EmeraldPrimary
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    SplitType.EXACT -> {
+                        var sumAllocated = 0.0
+                        selectedMembers.forEach { member ->
+                            val custom = state.customSplits.find { it.userId == member.id }
+                            val currentAmt = custom?.amount ?: 0.0
+                            sumAllocated += currentAmt
+
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = member.name,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    OutlinedTextField(
+                                        value = if (currentAmt > 0) currentAmt.toString() else "",
+                                        onValueChange = { input ->
+                                            val newVal = input.toDoubleOrNull() ?: 0.0
+                                            viewModel.updateCustomSplitAmount(member.id, member.name, newVal)
+                                        },
+                                        placeholder = { Text("0.00") },
+                                        prefix = { Text(currencySymbol) },
+                                        singleLine = true,
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        modifier = Modifier.width(130.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        val isMatched = kotlin.math.abs(sumAllocated - totalAmount) < 0.01
+                        Text(
+                            text = "Allocated: ${CurrencyFormatter.format(sumAllocated, currencySymbol)} / Total: ${CurrencyFormatter.format(totalAmount, currencySymbol)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isMatched) EmeraldPrimary else MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+
+                    SplitType.PERCENTAGE -> {
+                        var sumPct = 0.0
+                        selectedMembers.forEach { member ->
+                            val custom = state.customSplits.find { it.userId == member.id }
+                            val currentPct = custom?.percentage ?: 0.0
+                            sumPct += currentPct
+                            val calculatedAmt = (totalAmount * currentPct) / 100.0
+
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = member.name,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Text(
+                                            text = CurrencyFormatter.format(calculatedAmt, currencySymbol),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = EmeraldPrimary
+                                        )
+                                    }
+                                    OutlinedTextField(
+                                        value = if (currentPct > 0) currentPct.toString() else "",
+                                        onValueChange = { input ->
+                                            val newVal = input.toDoubleOrNull() ?: 0.0
+                                            viewModel.updateCustomSplitPercentage(member.id, member.name, newVal)
+                                        },
+                                        placeholder = { Text("0") },
+                                        suffix = { Text("%") },
+                                        singleLine = true,
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        modifier = Modifier.width(110.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        val isMatched = kotlin.math.abs(sumPct - 100.0) < 0.1
+                        Text(
+                            text = "Total Percentage: ${String.format("%.1f", sumPct)}% / 100%",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isMatched) EmeraldPrimary else MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+
+                    SplitType.SHARES -> {
+                        val totalShares = selectedMembers.sumOf { m ->
+                            state.customSplits.find { it.userId == m.id }?.shares ?: 1
+                        }.coerceAtLeast(1)
+
+                        selectedMembers.forEach { member ->
+                            val custom = state.customSplits.find { it.userId == member.id }
+                            val currentShare = custom?.shares ?: 1
+                            val calculatedAmt = (totalAmount * currentShare) / totalShares.toDouble()
+
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = member.name,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Text(
+                                            text = CurrencyFormatter.format(calculatedAmt, currencySymbol),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = EmeraldPrimary
+                                        )
+                                    }
+                                    OutlinedTextField(
+                                        value = currentShare.toString(),
+                                        onValueChange = { input ->
+                                            val newVal = input.toIntOrNull() ?: 1
+                                            viewModel.updateCustomSplitShares(member.id, member.name, newVal)
+                                        },
+                                        placeholder = { Text("1") },
+                                        suffix = { Text("share(s)") },
+                                        singleLine = true,
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        modifier = Modifier.width(130.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }

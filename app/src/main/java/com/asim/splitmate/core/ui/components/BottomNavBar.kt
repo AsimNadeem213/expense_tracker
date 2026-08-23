@@ -14,9 +14,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 
+import androidx.compose.material.icons.filled.Assessment
+
 sealed class BottomNavItem(val route: String, val title: String, val icon: ImageVector) {
     object Home : BottomNavItem("dashboard", "Home", Icons.Filled.Home)
     object Groups : BottomNavItem("groups", "Groups", Icons.Filled.Group)
+    object Reports : BottomNavItem("reports", "Reports", Icons.Filled.Assessment)
     object Balances : BottomNavItem("balances", "Balances", Icons.Filled.AccountBalanceWallet)
     object Profile : BottomNavItem("profile", "Profile", Icons.Filled.Person)
 }
@@ -24,6 +27,7 @@ sealed class BottomNavItem(val route: String, val title: String, val icon: Image
 val BOTTOM_NAV_ITEMS = listOf(
     BottomNavItem.Home,
     BottomNavItem.Groups,
+    BottomNavItem.Reports,
     BottomNavItem.Balances,
     BottomNavItem.Profile
 )

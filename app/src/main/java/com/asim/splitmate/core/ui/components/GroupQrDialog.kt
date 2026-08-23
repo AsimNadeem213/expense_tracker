@@ -99,6 +99,26 @@ fun GroupQrDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                if (group.totalExpense > 0.0) {
+                    androidx.compose.material3.Card(
+                        colors = androidx.compose.material3.CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp)
+                    ) {
+                        Text(
+                            text = "⚠️ Note: Expenses have already been recorded in this group. New members cannot join.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(10.dp),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+
                 // QR Code Image container
                 Box(
                     modifier = Modifier

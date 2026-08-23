@@ -72,6 +72,15 @@ fun GroupListScreen(
         }
     }
 
+    LaunchedEffect(state.groupCreatedSuccess, state.joinedGroupId) {
+        if (state.groupCreatedSuccess && !state.joinedGroupId.isNullOrBlank()) {
+            val groupId = state.joinedGroupId!!
+            Toast.makeText(context, "Successfully joined group!", Toast.LENGTH_SHORT).show()
+            viewModel.resetState()
+            onNavigateToGroupDetail(groupId)
+        }
+    }
+
     if (showJoinDialog) {
         AlertDialog(
             onDismissRequest = { showJoinDialog = false },
@@ -255,11 +264,20 @@ fun GroupListScreen(
                 }
 
                 items(state.groups) { group ->
+                    val currentUserId = state.currentUserId
+                    val isCreator = when {
+                        group.createdBy.isBlank() -> false
+                        currentUserId.isNotBlank() && group.createdBy == currentUserId -> true
+                        else -> {
+                            val currentMember = group.members.find { it.isCurrentUser || (currentUserId.isNotBlank() && it.id == currentUserId) }
+                            currentMember != null && currentMember.id == group.createdBy
+                        }
+                    }
                     GroupCard(
                         group = group,
                         onClick = { onNavigateToGroupDetail(group.id) },
-                        onEditClick = { onNavigateToEditGroup(group.id) },
-                        onDeleteClick = { groupToDelete = group }
+                        onEditClick = if (isCreator) { { onNavigateToEditGroup(group.id) } } else null,
+                        onDeleteClick = if (isCreator) { { groupToDelete = group } } else null
                     )
                 }
             }

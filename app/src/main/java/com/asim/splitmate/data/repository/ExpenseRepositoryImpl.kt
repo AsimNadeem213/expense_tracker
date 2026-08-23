@@ -33,6 +33,15 @@ class ExpenseRepositoryImpl(
         }
     }
 
+    override fun getAllExpenses(): Flow<List<Expense>> {
+        return expenseDao.getAllExpenses().map { entities ->
+            entities.map { entity ->
+                val splits = expenseDao.getSplitsForExpense(entity.id).map { it.toDomain() }
+                entity.toDomain(splits)
+            }
+        }
+    }
+
     override suspend fun getExpenseById(expenseId: String): Expense? {
         val entity = expenseDao.getExpenseById(expenseId) ?: return null
         val splits = expenseDao.getSplitsForExpense(expenseId).map { it.toDomain() }
@@ -44,8 +53,8 @@ class ExpenseRepositoryImpl(
             val entity = ExpenseEntity.fromDomain(expense)
             val splitEntities = expense.splits.map { ExpenseSplitEntity.fromDomain(expense.id, it) }
 
-            expenseDao.insertExpense(entity)
             expenseDao.insertSplits(splitEntities)
+            expenseDao.insertExpense(entity)
 
             realtimeDatabaseDataSource.syncExpense(expense)
             Resource.Success(expense)
@@ -60,8 +69,8 @@ class ExpenseRepositoryImpl(
             val entity = ExpenseEntity.fromDomain(expense)
             val splitEntities = expense.splits.map { ExpenseSplitEntity.fromDomain(expense.id, it) }
 
-            expenseDao.insertExpense(entity)
             expenseDao.insertSplits(splitEntities)
+            expenseDao.insertExpense(entity)
 
             realtimeDatabaseDataSource.syncExpense(expense)
             Resource.Success(expense)

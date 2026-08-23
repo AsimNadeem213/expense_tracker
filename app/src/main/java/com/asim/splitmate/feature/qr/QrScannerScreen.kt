@@ -1,7 +1,6 @@
 package com.asim.splitmate.feature.qr
 
 import android.Manifest
-import android.content.contentValuesOf
 import android.content.pm.PackageManager
 import android.util.Size
 import android.widget.Toast
@@ -71,6 +70,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.asim.splitmate.core.ui.theme.EmeraldPrimary
 import com.asim.splitmate.core.utils.QrCodeUtils
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.collectAsState
+import com.asim.splitmate.feature.groups.GroupViewModel
 import com.google.zxing.BinaryBitmap
 import com.google.zxing.MultiFormatReader
 import com.google.zxing.NotFoundException
@@ -79,12 +81,14 @@ import com.google.zxing.common.HybridBinarizer
 
 @Composable
 fun QrScannerScreen(
-    onQrCodeScanned: (String) -> Unit,
+    viewModel: GroupViewModel,
+    onJoinedGroup: (String) -> Unit,
     onNavigateBack: () -> Unit,
     onEnterCodeManually: () -> Unit
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val state by viewModel.uiState.collectAsState()
 
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -114,6 +118,23 @@ fun QrScannerScreen(
     var camera by remember { mutableStateOf<Camera?>(null) }
     var isScanned by remember { mutableStateOf(false) }
 
+    LaunchedEffect(state.groupCreatedSuccess, state.joinedGroupId) {
+        if (state.groupCreatedSuccess && !state.joinedGroupId.isNullOrEmpty()) {
+            val groupId = state.joinedGroupId!!
+            Toast.makeText(context, "Successfully joined group!", Toast.LENGTH_SHORT).show()
+            viewModel.resetState()
+            onJoinedGroup(groupId)
+        }
+    }
+
+    LaunchedEffect(state.error) {
+        if (state.error != null) {
+            Toast.makeText(context, state.error!!, Toast.LENGTH_LONG).show()
+            isScanned = false
+            viewModel.resetState()
+        }
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = Color.Black
@@ -142,12 +163,12 @@ fun QrScannerScreen(
                             val reader = MultiFormatReader()
 
                             imageAnalysis.setAnalyzer(ContextCompat.getMainExecutor(ctx)) { imageProxy ->
-                                if (!isScanned) {
+                                if (!isScanned && !state.isLoading) {
                                     val scannedResult = processImageProxy(reader, imageProxy)
                                     if (scannedResult != null) {
                                         isScanned = true
                                         val inviteCode = QrCodeUtils.parseInviteCodeFromQr(scannedResult)
-                                        onQrCodeScanned(inviteCode)
+                                        viewModel.joinGroup(inviteCode)
                                     }
                                 }
                                 imageProxy.close()
@@ -302,6 +323,28 @@ fun QrScannerScreen(
                     Spacer(modifier = Modifier.height(12.dp))
                     OutlinedButton(onClick = onEnterCodeManually) {
                         Text("Enter Code Manually", color = Color.White)
+                    }
+                }
+            }
+
+            if (state.isLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.75f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        CircularProgressIndicator(color = EmeraldPrimary)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Joining group...",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }

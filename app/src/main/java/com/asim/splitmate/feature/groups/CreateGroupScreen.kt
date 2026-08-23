@@ -77,14 +77,10 @@ fun CreateGroupScreen(
 
             memberNames.clear()
             val otherMembers = group.members.filter { !it.isCurrentUser }.map { it.name }
-            if (otherMembers.isEmpty()) {
-                memberNames.addAll(listOf("Ali", "Sarah"))
-            } else {
-                memberNames.addAll(otherMembers)
-            }
+            memberNames.addAll(otherMembers)
             isInitialized = true
         } else if (!isEditMode && !isInitialized) {
-            memberNames.addAll(listOf("Ali", "Sarah"))
+            memberNames.clear()
             isInitialized = true
         }
     }
@@ -231,6 +227,8 @@ fun CreateGroupScreen(
             }
 
             item {
+                val hasExpenses = isEditMode && (state.groupExpenses.isNotEmpty() || (state.currentGroup?.totalExpense ?: 0.0) > 0)
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -241,14 +239,34 @@ fun CreateGroupScreen(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
-                    OutlinedButton(onClick = { memberNames.add("") }) {
-                        Icon(Icons.Filled.Add, contentDescription = null)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Add Member")
+                    if (!hasExpenses) {
+                        OutlinedButton(onClick = { memberNames.add("") }) {
+                            Icon(Icons.Filled.Add, contentDescription = null)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Add Member")
+                        }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
+
+                if (hasExpenses) {
+                    androidx.compose.material3.Card(
+                        colors = androidx.compose.material3.CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+                        ),
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "⚠️ New members cannot be added to this group because expenses have already been recorded.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
 
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -264,11 +282,14 @@ fun CreateGroupScreen(
                                 label = { Text("Member ${index + 2} Name") },
                                 placeholder = { Text("Enter member name") },
                                 modifier = Modifier.weight(1f),
-                                singleLine = true
+                                singleLine = true,
+                                enabled = !hasExpenses
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            IconButton(onClick = { memberNames.removeAt(index) }) {
-                                Icon(Icons.Filled.Close, contentDescription = "Remove")
+                            if (!hasExpenses) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                IconButton(onClick = { memberNames.removeAt(index) }) {
+                                    Icon(Icons.Filled.Close, contentDescription = "Remove")
+                                }
                             }
                         }
                     }

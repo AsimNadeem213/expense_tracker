@@ -3,6 +3,7 @@ package com.asim.splitmate.feature.groups
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.asim.splitmate.core.common.Resource
+import com.asim.splitmate.core.firebase.FirebaseHelper
 import com.asim.splitmate.data.local.dao.UserDao
 import com.asim.splitmate.domain.model.Group
 import com.asim.splitmate.domain.model.GroupType
@@ -29,12 +30,16 @@ data class GroupUiState(
     val error: String? = null,
     val groupCreatedSuccess: Boolean = false,
     val groupUpdatedSuccess: Boolean = false,
-    val groupDeletedSuccess: Boolean = false
+    val groupDeletedSuccess: Boolean = false,
+    val selectedGroup: Group? = null,
+    val joinedGroupId: String? = null,
+    val currentUserId: String = ""
 )
 
 class GroupViewModel(
     private val groupRepository: GroupRepository,
     private val expenseRepository: ExpenseRepository,
+    private val settlementRepository: SettlementRepository,
     private val calculateGroupBalancesUseCase: CalculateGroupBalancesUseCase,
     private val userDao: UserDao
 ) : ViewModel() {
@@ -48,22 +53,22 @@ class GroupViewModel(
 
     fun loadGroups() {
         viewModelScope.launch {
-            val user = userDao.getCurrentUserSync()
-            val userId = user?.id ?: "usr_you"
-            launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            val currentUser = userDao.getCurrentUserSync()
+            val userId = currentUser?.id ?: FirebaseHelper.currentUserId ?: "usr_you"
+            _uiState.value = _uiState.value.copy(currentUserId = userId)
+            try {
                 groupRepository.syncRemoteData(userId)
-            }
+            } catch (_: Exception) {}
+
             groupRepository.getAllGroups().collect { groups ->
-                _uiState.value = _uiState.value.copy(groups = groups, isLoading = false)
+                _uiState.value = _uiState.value.copy(groups = groups, currentUserId = userId, isLoading = false)
             }
         }
     }
 
     fun selectGroup(groupId: String) {
         viewModelScope.launch {
-            val user = userDao.getCurrentUserSync()
-            val userId = user?.id ?: "usr_you"
-
             groupRepository.getGroupById(groupId).collect { group ->
                 _uiState.value = _uiState.value.copy(currentGroup = group)
             }
@@ -92,12 +97,20 @@ class GroupViewModel(
         }
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            val currentUser = userDao.getCurrentUserSync()?.toDomain() ?: User("usr_you", "Asim", "asim@splitmate.app", isCurrentUser = true)
+            val dbUser = userDao.getCurrentUserSync()?.toDomain()
+            val firebaseUid = FirebaseHelper.currentUserId
+            val currentUserId = dbUser?.id ?: firebaseUid ?: "usr_you"
+            val currentUser = dbUser?.copy(id = currentUserId, isCurrentUser = true)
+                ?: User(id = currentUserId, name = "User", email = "", avatarUrl = null, phoneNumber = null, isCurrentUser = true)
 
             val membersList = mutableListOf(currentUser)
             memberNames.filter { it.isNotBlank() }.forEach { mName ->
                 membersList.add(User(id = "usr_" + UUID.randomUUID().toString().take(8), name = mName, email = ""))
             }
+
+            val prefix = name.filter { it.isLetterOrDigit() }.take(3).uppercase().let { if (it.length >= 3) it else "GRP" }
+            val randomPart = UUID.randomUUID().toString().replace("-", "").take(4).uppercase()
+            val inviteCode = "$prefix$randomPart"
 
             val group = Group(
                 id = "grp_" + UUID.randomUUID().toString().take(8),
@@ -108,7 +121,7 @@ class GroupViewModel(
                 createdBy = currentUser.id,
                 createdAt = System.currentTimeMillis(),
                 members = membersList,
-                inviteCode = name.take(3).uppercase() + UUID.randomUUID().toString().take(4).uppercase()
+                inviteCode = inviteCode
             )
 
             when (val res = groupRepository.createGroup(group)) {
@@ -130,7 +143,11 @@ class GroupViewModel(
         }
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            val currentUser = userDao.getCurrentUserSync()?.toDomain() ?: User("usr_you", "Asim", "asim@splitmate.app", isCurrentUser = true)
+            val dbUser = userDao.getCurrentUserSync()?.toDomain()
+            val firebaseUid = FirebaseHelper.currentUserId
+            val currentUserId = dbUser?.id ?: firebaseUid ?: "usr_you"
+            val currentUser = dbUser?.copy(id = currentUserId, isCurrentUser = true)
+                ?: User(id = currentUserId, name = "User", email = "", avatarUrl = null, phoneNumber = null, isCurrentUser = true)
             val currentGroup = _uiState.value.currentGroup
 
             val existingNonCurrentMembers = currentGroup?.members?.filter { !it.isCurrentUser } ?: emptyList()
@@ -190,7 +207,12 @@ class GroupViewModel(
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             when (val res = groupRepository.joinGroupWithInviteCode(inviteCode)) {
                 is Resource.Success -> {
-                    _uiState.value = _uiState.value.copy(isLoading = false, groupCreatedSuccess = true)
+                    val joinedGroup = res.data
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        groupCreatedSuccess = true,
+                        joinedGroupId = joinedGroup?.id
+                    )
                 }
                 is Resource.Error -> {
                     _uiState.value = _uiState.value.copy(isLoading = false, error = res.message ?: "Failed to join group")
@@ -205,6 +227,7 @@ class GroupViewModel(
             groupCreatedSuccess = false,
             groupUpdatedSuccess = false,
             groupDeletedSuccess = false,
+            joinedGroupId = null,
             error = null
         )
     }

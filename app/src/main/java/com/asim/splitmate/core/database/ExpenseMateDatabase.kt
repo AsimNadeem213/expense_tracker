@@ -23,7 +23,7 @@ import com.asim.splitmate.data.local.entity.UserEntity
         ExpenseSplitEntity::class,
         SettlementEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

@@ -18,7 +18,9 @@ data class ExpenseEntity(
     val paidByUserName: String,
     val date: Long,
     val splitType: String,
-    val notes: String
+    val notes: String,
+    val createdBy: String = paidByUserId,
+    val isEdited: Boolean = false
 ) {
     fun toDomain(splits: List<Split>): Expense = Expense(
         id = id,
@@ -31,7 +33,9 @@ data class ExpenseEntity(
         date = date,
         splitType = try { SplitType.valueOf(splitType) } catch (e: Exception) { SplitType.EQUAL },
         splits = splits,
-        notes = notes
+        notes = notes,
+        createdBy = createdBy.ifBlank { paidByUserId },
+        isEdited = isEdited
     )
 
     companion object {
@@ -45,7 +49,9 @@ data class ExpenseEntity(
             paidByUserName = expense.paidByUserName,
             date = expense.date,
             splitType = expense.splitType.name,
-            notes = expense.notes
+            notes = expense.notes,
+            createdBy = expense.createdBy,
+            isEdited = expense.isEdited
         )
     }
 }

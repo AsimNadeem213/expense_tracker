@@ -177,6 +177,13 @@ fun HomeScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 BalanceSubItem(
+                                    label = "Total Paid",
+                                    amount = summary?.totalYouPaid ?: 0.0,
+                                    color = EmeraldPrimary,
+                                    icon = Icons.Filled.Payments
+                                )
+
+                                BalanceSubItem(
                                     label = "You Owe",
                                     amount = summary?.totalYouOwe ?: 0.0,
                                     color = CoralOwe,
@@ -245,11 +252,20 @@ fun HomeScreen(
                     }
                 } else {
                     items(summary?.groups ?: emptyList()) { group ->
+                        val currentUserId = state.currentUserId
+                        val isCreator = when {
+                            group.createdBy.isBlank() -> false
+                            currentUserId.isNotBlank() && group.createdBy == currentUserId -> true
+                            else -> {
+                                val currentMember = group.members.find { it.isCurrentUser || (currentUserId.isNotBlank() && it.id == currentUserId) }
+                                currentMember != null && currentMember.id == group.createdBy
+                            }
+                        }
                         GroupCard(
                             group = group,
                             onClick = { onNavigateToGroup(group.id) },
-                            onEditClick = { onNavigateToEditGroup(group.id) },
-                            onDeleteClick = { groupToDelete = group }
+                            onEditClick = if (isCreator) { { onNavigateToEditGroup(group.id) } } else null,
+                            onDeleteClick = if (isCreator) { { groupToDelete = group } } else null
                         )
                     }
                 }

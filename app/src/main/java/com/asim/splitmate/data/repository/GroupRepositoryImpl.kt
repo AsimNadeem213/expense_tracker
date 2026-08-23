@@ -1,6 +1,7 @@
 package com.asim.splitmate.data.repository
 
 import com.asim.splitmate.core.common.Resource
+import com.asim.splitmate.core.firebase.FirebaseHelper
 import com.asim.splitmate.core.firebase.RealtimeDatabaseDataSource
 import com.asim.splitmate.data.local.dao.ExpenseDao
 import com.asim.splitmate.data.local.dao.GroupDao
@@ -24,12 +25,19 @@ class GroupRepositoryImpl(
 ) : GroupRepository {
 
     override fun getAllGroups(): Flow<List<Group>> {
+        val currentUserId = FirebaseHelper.currentUserId
         return groupDao.getAllGroups().map { entities ->
-            entities.map { entity ->
-                val members = groupDao.getGroupMembersSync(entity.id).map { it.toDomain() }
-                val expenses = expenseDao.getExpensesForGroupSync(entity.id)
-                val totalSpent = expenses.sumOf { it.amount }
-                entity.toDomain(members = members, totalExpense = totalSpent)
+            entities.mapNotNull { entity ->
+                val members = groupDao.getGroupMembersSync(entity.id).map { it.toDomain() }.distinctBy { it.id }
+                val isUserMember = (currentUserId != null && entity.createdBy == currentUserId) ||
+                        members.any { (currentUserId != null && it.id == currentUserId) || it.isCurrentUser }
+                if (isUserMember || currentUserId == null) {
+                    val expenses = expenseDao.getExpensesForGroupSync(entity.id)
+                    val totalSpent = expenses.sumOf { it.amount }
+                    entity.toDomain(members = members, totalExpense = totalSpent)
+                } else {
+                    null
+                }
             }
         }
     }
@@ -38,7 +46,7 @@ class GroupRepositoryImpl(
         return groupDao.getGroupById(groupId).map { entity ->
             if (entity == null) null
             else {
-                val members = groupDao.getGroupMembersSync(entity.id).map { it.toDomain() }
+                val members = groupDao.getGroupMembersSync(entity.id).map { it.toDomain() }.distinctBy { it.id }
                 val expenses = expenseDao.getExpensesForGroupSync(entity.id)
                 val totalSpent = expenses.sumOf { it.amount }
                 entity.toDomain(members = members, totalExpense = totalSpent)
@@ -57,21 +65,32 @@ class GroupRepositoryImpl(
             expenseDao = expenseDao,
             settlementDao = settlementDao
         )
+        realtimeDatabaseDataSource.startRealtimeSync(
+            userId = userId,
+            userName = userName,
+            groupDao = groupDao,
+            userDao = userDao,
+            expenseDao = expenseDao,
+            settlementDao = settlementDao,
+            coroutineScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO)
+        )
     }
 
     override suspend fun createGroup(group: Group): Resource<Group> {
         return try {
-            val groupEntity = GroupEntity.fromDomain(group)
+            val uniqueMembers = group.members.distinctBy { it.id }
+            val cleanGroup = group.copy(members = uniqueMembers)
+            val groupEntity = GroupEntity.fromDomain(cleanGroup)
             groupDao.insertGroup(groupEntity)
 
-            val memberEntities = group.members.map { UserEntity.fromDomain(it) }
+            val memberEntities = uniqueMembers.map { UserEntity.fromDomain(it) }
             userDao.insertUsers(memberEntities)
 
-            val crossRefs = group.members.map { GroupMemberCrossRef(groupId = group.id, userId = it.id) }
+            val crossRefs = uniqueMembers.map { GroupMemberCrossRef(groupId = group.id, userId = it.id) }
             groupDao.insertGroupMembers(crossRefs)
 
-            realtimeDatabaseDataSource.syncGroup(group)
-            Resource.Success(group)
+            realtimeDatabaseDataSource.syncGroup(cleanGroup)
+            Resource.Success(cleanGroup)
         } catch (e: Exception) {
             Resource.Error(e.message ?: "Failed to create group", e)
         }
@@ -79,18 +98,28 @@ class GroupRepositoryImpl(
 
     override suspend fun updateGroup(group: Group): Resource<Group> {
         return try {
-            val groupEntity = GroupEntity.fromDomain(group)
+            val existingMemberIds = groupDao.getGroupMembersSync(group.id).map { it.id }.toSet()
+            val expenses = expenseDao.getExpensesForGroupSync(group.id)
+            val newMemberIds = group.members.map { it.id }.filter { !existingMemberIds.contains(it) }
+
+            if (expenses.isNotEmpty() && newMemberIds.isNotEmpty()) {
+                return Resource.Error("New members cannot be added to this group because expenses have already been recorded.")
+            }
+
+            val uniqueMembers = group.members.distinctBy { it.id }
+            val cleanGroup = group.copy(members = uniqueMembers)
+            val groupEntity = GroupEntity.fromDomain(cleanGroup)
             groupDao.insertGroup(groupEntity)
 
-            val memberEntities = group.members.map { UserEntity.fromDomain(it) }
+            val memberEntities = uniqueMembers.map { UserEntity.fromDomain(it) }
             userDao.insertUsers(memberEntities)
 
             groupDao.deleteGroupMembersForGroup(group.id)
-            val crossRefs = group.members.map { GroupMemberCrossRef(groupId = group.id, userId = it.id) }
+            val crossRefs = uniqueMembers.map { GroupMemberCrossRef(groupId = group.id, userId = it.id) }
             groupDao.insertGroupMembers(crossRefs)
 
-            realtimeDatabaseDataSource.syncGroup(group)
-            Resource.Success(group)
+            realtimeDatabaseDataSource.syncGroup(cleanGroup)
+            Resource.Success(cleanGroup)
         } catch (e: Exception) {
             Resource.Error(e.message ?: "Failed to update group", e)
         }
@@ -98,6 +127,14 @@ class GroupRepositoryImpl(
 
     override suspend fun addMemberToGroup(groupId: String, user: User): Resource<Unit> {
         return try {
+            val existingMembers = groupDao.getGroupMembersSync(groupId)
+            if (existingMembers.any { it.id == user.id }) {
+                return Resource.Success(Unit)
+            }
+            val expenses = expenseDao.getExpensesForGroupSync(groupId)
+            if (expenses.isNotEmpty()) {
+                return Resource.Error("New members cannot be added to this group because expenses have already been recorded.")
+            }
             userDao.insertUser(UserEntity.fromDomain(user))
             groupDao.insertGroupMembers(listOf(GroupMemberCrossRef(groupId = groupId, userId = user.id)))
             Resource.Success(Unit)
@@ -128,13 +165,32 @@ class GroupRepositoryImpl(
     }
 
     override suspend fun joinGroupWithInviteCode(inviteCode: String): Resource<Group> {
-        val currentUser = userDao.getCurrentUserSync()
-        val userId = currentUser?.id ?: "usr_you"
-        val userName = currentUser?.name ?: "You"
+        val firebaseUser = FirebaseHelper.auth?.currentUser
+        val dbUser = userDao.getCurrentUserSync()
+
+        val realId = dbUser?.id ?: firebaseUser?.uid ?: ("usr_" + java.util.UUID.randomUUID().toString().replace("-", "").take(16))
+        val realName = dbUser?.name?.takeIf { it.isNotBlank() && it != "You" && it != "Guest User" }
+            ?: firebaseUser?.displayName?.takeIf { it.isNotBlank() }
+            ?: firebaseUser?.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() }
+            ?: dbUser?.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() }
+            ?: "User"
+        val realEmail = firebaseUser?.email?.takeIf { it.isNotBlank() }
+            ?: dbUser?.email
+            ?: ""
+
+        val currentEntity = UserEntity(
+            id = realId,
+            name = realName,
+            email = realEmail,
+            isCurrentUser = true
+        )
+        userDao.insertUser(currentEntity)
+
         return realtimeDatabaseDataSource.joinGroupWithInviteCode(
             inviteCode = inviteCode,
-            userId = userId,
-            userName = userName,
+            userId = realId,
+            userName = realName,
+            userEmail = realEmail,
             groupDao = groupDao,
             userDao = userDao,
             expenseDao = expenseDao,

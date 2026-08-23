@@ -16,6 +16,7 @@ import com.asim.splitmate.domain.usecase.AddExpenseUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 
 data class ExpenseUiState(
@@ -26,9 +27,11 @@ data class ExpenseUiState(
     val splitType: SplitType = SplitType.EQUAL,
     val customSplits: List<Split> = emptyList(),
     val currentExpense: Expense? = null,
+    val selectedDate: Long = System.currentTimeMillis(),
     val isLoading: Boolean = false,
     val error: String? = null,
-    val isSavedSuccess: Boolean = false
+    val isSavedSuccess: Boolean = false,
+    val currentUserId: String = ""
 )
 
 class ExpenseViewModel(
@@ -44,25 +47,28 @@ class ExpenseViewModel(
     fun setupForGroup(groupId: String?) {
         viewModelScope.launch {
             val user = userDao.getCurrentUserSync()?.toDomain() ?: User("usr_you", "Asim", "asim@splitmate.app", isCurrentUser = true)
+            _uiState.value = _uiState.value.copy(currentUserId = user.id)
             if (!groupId.isNullOrBlank()) {
                 groupRepository.getGroupById(groupId).collect { group ->
                     if (group != null) {
                         _uiState.value = _uiState.value.copy(
                             currentGroup = group,
                             selectedPaidByUser = _uiState.value.selectedPaidByUser ?: (group.members.find { it.id == user.id } ?: group.members.firstOrNull() ?: user),
-                            selectedMembers = if (_uiState.value.selectedMembers.isEmpty()) group.members else _uiState.value.selectedMembers
+                            selectedMembers = if (_uiState.value.currentExpense == null || _uiState.value.selectedMembers.isEmpty()) group.members else _uiState.value.selectedMembers,
+                            currentUserId = user.id
                         )
                     }
                 }
             } else {
                 groupRepository.getAllGroups().collect { groups ->
-                    _uiState.value = _uiState.value.copy(availableGroups = groups)
+                    _uiState.value = _uiState.value.copy(availableGroups = groups, currentUserId = user.id)
                     if (_uiState.value.currentGroup == null && groups.isNotEmpty()) {
                         val firstGroup = groups.first()
                         _uiState.value = _uiState.value.copy(
                             currentGroup = firstGroup,
                             selectedPaidByUser = firstGroup.members.find { it.id == user.id } ?: firstGroup.members.firstOrNull() ?: user,
-                            selectedMembers = firstGroup.members
+                            selectedMembers = firstGroup.members,
+                            currentUserId = user.id
                         )
                     }
                 }
@@ -76,16 +82,39 @@ class ExpenseViewModel(
             _uiState.value = _uiState.value.copy(
                 currentGroup = group,
                 selectedPaidByUser = group.members.find { it.id == user.id } ?: group.members.firstOrNull() ?: user,
-                selectedMembers = group.members
+                selectedMembers = group.members,
+                currentUserId = user.id
             )
         }
     }
 
     fun loadExpenseDetail(expenseId: String) {
         viewModelScope.launch {
+            val user = userDao.getCurrentUserSync()?.toDomain() ?: User("usr_you", "Asim", "asim@splitmate.app", isCurrentUser = true)
             val exp = expenseRepository.getExpenseById(expenseId)
-            _uiState.value = _uiState.value.copy(currentExpense = exp)
+            if (exp != null) {
+                val group = _uiState.value.currentGroup ?: groupRepository.getGroupById(exp.groupId).firstOrNull()
+                val members = group?.members ?: emptyList()
+                val payer = members.find { it.id == exp.paidByUserId } ?: User(exp.paidByUserId, exp.paidByUserName, "")
+                val splitUserIds = exp.splits.map { it.userId }.toSet()
+                val participants = members.filter { splitUserIds.contains(it.id) }.ifEmpty { members }
+
+                _uiState.value = _uiState.value.copy(
+                    currentExpense = exp,
+                    currentGroup = group,
+                    selectedPaidByUser = payer,
+                    selectedMembers = participants,
+                    splitType = exp.splitType,
+                    customSplits = exp.splits,
+                    selectedDate = exp.date,
+                    currentUserId = user.id
+                )
+            }
         }
+    }
+
+    fun setSelectedDate(dateMillis: Long) {
+        _uiState.value = _uiState.value.copy(selectedDate = dateMillis)
     }
 
     fun addExpense(
@@ -93,7 +122,8 @@ class ExpenseViewModel(
         title: String,
         amountText: String,
         category: Category,
-        notes: String
+        notes: String,
+        dateMillis: Long = _uiState.value.selectedDate
     ) {
         val targetGroupId = if (!groupId.isNullOrBlank()) groupId else _uiState.value.currentGroup?.id
         if (targetGroupId.isNullOrBlank()) {
@@ -136,7 +166,9 @@ class ExpenseViewModel(
                     selectedMembers = selectedMembers,
                     splitType = _uiState.value.splitType,
                     customSplits = _uiState.value.customSplits,
-                    notes = notes
+                    notes = notes,
+                    date = dateMillis,
+                    existingExpenseId = _uiState.value.currentExpense?.id
                 )) {
                     is Resource.Success -> {
                         _uiState.value = _uiState.value.copy(isLoading = false, isSavedSuccess = true)
@@ -175,7 +207,52 @@ class ExpenseViewModel(
         _uiState.value = _uiState.value.copy(selectedPaidByUser = user)
     }
 
+    fun toggleMemberParticipant(user: User) {
+        val currentList = _uiState.value.selectedMembers.toMutableList()
+        if (currentList.any { it.id == user.id }) {
+            if (currentList.size > 1) {
+                currentList.removeAll { it.id == user.id }
+            }
+        } else {
+            currentList.add(user)
+        }
+        _uiState.value = _uiState.value.copy(selectedMembers = currentList)
+    }
+
+    fun updateCustomSplitAmount(userId: String, userName: String, amount: Double) {
+        val currentSplits = _uiState.value.customSplits.toMutableList()
+        val index = currentSplits.indexOfFirst { it.userId == userId }
+        if (index >= 0) {
+            currentSplits[index] = currentSplits[index].copy(amount = amount)
+        } else {
+            currentSplits.add(Split(userId = userId, userName = userName, amount = amount))
+        }
+        _uiState.value = _uiState.value.copy(customSplits = currentSplits)
+    }
+
+    fun updateCustomSplitPercentage(userId: String, userName: String, percentage: Double) {
+        val currentSplits = _uiState.value.customSplits.toMutableList()
+        val index = currentSplits.indexOfFirst { it.userId == userId }
+        if (index >= 0) {
+            currentSplits[index] = currentSplits[index].copy(percentage = percentage)
+        } else {
+            currentSplits.add(Split(userId = userId, userName = userName, percentage = percentage))
+        }
+        _uiState.value = _uiState.value.copy(customSplits = currentSplits)
+    }
+
+    fun updateCustomSplitShares(userId: String, userName: String, shares: Int) {
+        val currentSplits = _uiState.value.customSplits.toMutableList()
+        val index = currentSplits.indexOfFirst { it.userId == userId }
+        if (index >= 0) {
+            currentSplits[index] = currentSplits[index].copy(shares = shares)
+        } else {
+            currentSplits.add(Split(userId = userId, userName = userName, shares = shares))
+        }
+        _uiState.value = _uiState.value.copy(customSplits = currentSplits)
+    }
+
     fun resetState() {
-        _uiState.value = _uiState.value.copy(isSavedSuccess = false, isLoading = false, error = null)
+        _uiState.value = ExpenseUiState()
     }
 }

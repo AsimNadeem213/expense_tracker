@@ -24,15 +24,49 @@ import com.asim.splitmate.feature.profile.ProfileScreen
 import com.asim.splitmate.feature.profile.ProfileViewModel
 import com.asim.splitmate.feature.settlements.RecordSettlementScreen
 import com.asim.splitmate.feature.settlements.SettlementViewModel
+import com.asim.splitmate.feature.splash.SplashScreen
+import com.asim.splitmate.feature.onboarding.OnboardingScreen
 import com.asim.splitmate.feature.qr.QrScannerScreen
+import com.asim.splitmate.feature.reports.ReportScreen
+import com.asim.splitmate.feature.reports.ReportViewModel
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun ExpenseMateNavHost(navController: NavHostController) {
     NavHost(
         navController = navController,
-        startDestination = Screen.Login.route
+        startDestination = Screen.Splash.route
     ) {
+        composable(Screen.Splash.route) {
+            SplashScreen(
+                onNavigateToOnboarding = {
+                    navController.navigate(Screen.Onboarding.route) {
+                        popUpTo(Screen.Splash.route) { inclusive = true }
+                    }
+                },
+                onNavigateToLogin = {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.Splash.route) { inclusive = true }
+                    }
+                },
+                onNavigateToDashboard = {
+                    navController.navigate(Screen.Dashboard.route) {
+                        popUpTo(Screen.Splash.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        composable(Screen.Onboarding.route) {
+            OnboardingScreen(
+                onFinishOnboarding = {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.Onboarding.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+
         composable(Screen.Login.route) {
             val authViewModel: AuthViewModel = koinViewModel()
             LoginScreen(
@@ -202,7 +236,16 @@ fun ExpenseMateNavHost(navController: NavHostController) {
             val profileViewModel: ProfileViewModel = koinViewModel()
             ProfileScreen(
                 viewModel = profileViewModel,
-                onLogout = { navController.navigate(Screen.Login.route) { popUpTo(0) { inclusive = true } } },
+                onLogout = { navController.navigate(Screen.Splash.route) { popUpTo(0) { inclusive = true } } },
+                onNavigateTab = { route -> navController.navigate(route) { launchSingleTop = true } }
+            )
+        }
+
+        composable(Screen.Reports.route) {
+            val reportViewModel: ReportViewModel = koinViewModel()
+            ReportScreen(
+                viewModel = reportViewModel,
+                onNavigateToExpenseDetail = { expId -> navController.navigate(Screen.ExpenseDetail.createRoute(expId)) },
                 onNavigateTab = { route -> navController.navigate(route) { launchSingleTop = true } }
             )
         }
@@ -210,9 +253,11 @@ fun ExpenseMateNavHost(navController: NavHostController) {
         composable(Screen.QrScanner.route) {
             val groupViewModel: GroupViewModel = koinViewModel()
             QrScannerScreen(
-                onQrCodeScanned = { code ->
-                    groupViewModel.joinGroup(code)
-                    navController.popBackStack()
+                viewModel = groupViewModel,
+                onJoinedGroup = { groupId ->
+                    navController.navigate(Screen.GroupDetail.createRoute(groupId)) {
+                        popUpTo(Screen.Groups.route) { inclusive = false }
+                    }
                 },
                 onNavigateBack = { navController.popBackStack() },
                 onEnterCodeManually = { navController.popBackStack() }

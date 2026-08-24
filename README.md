@@ -174,12 +174,6 @@ Contributions, feature requests, and bug reports are welcome!
 
 ---
 
-## 📜 License
-
-Distributed under the **MIT License**. See `LICENSE` for more information.
-
----
-
 <p align="center">
   Crafted with ❤️ by <a href="https://github.com/AsimNadeem213">Asim Nadeem</a>
 </p>

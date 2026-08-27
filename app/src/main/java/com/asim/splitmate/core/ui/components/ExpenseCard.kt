@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -36,6 +37,10 @@ import com.asim.splitmate.core.utils.CurrencyFormatter
 import com.asim.splitmate.core.utils.DateFormatter
 import com.asim.splitmate.domain.model.Expense
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+
 @Composable
 fun ExpenseCard(
     expense: Expense,
@@ -45,9 +50,12 @@ fun ExpenseCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
             .clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -56,8 +64,8 @@ fun ExpenseCard(
             val categoryColor = parseHexColor(expense.category.colorHex)
             Box(
                 modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(14.dp))
                     .background(categoryColor.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
@@ -65,54 +73,51 @@ fun ExpenseCard(
                     imageVector = getCategoryIcon(expense.category.iconName),
                     contentDescription = expense.category.name,
                     tint = categoryColor,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(26.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(14.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = expense.title,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.Bold
                     )
-
                 }
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "Paid by ${expense.paidByUserName} • ${DateFormatter.formatDate(expense.date)}",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
-
             }
 
-            Column() {
+            Column(horizontalAlignment = Alignment.End) {
                 Text(
                     text = CurrencyFormatter.format(expense.amount, currencySymbol),
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 if (expense.isEdited) {
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Box(
-                        modifier = Modifier
-                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
-                            .background(com.asim.splitmate.core.ui.theme.EmeraldPrimary.copy(alpha = 0.15f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Surface(
+                        color = com.asim.splitmate.core.ui.theme.EmeraldPrimary.copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
                             text = "Edited",
                             style = MaterialTheme.typography.labelSmall,
                             color = com.asim.splitmate.core.ui.theme.EmeraldPrimary,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
                 }
             }
-
         }
     }
 }

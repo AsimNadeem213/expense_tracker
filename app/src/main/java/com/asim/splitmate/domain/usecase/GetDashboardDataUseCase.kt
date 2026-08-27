@@ -37,7 +37,7 @@ class GetDashboardDataUseCase(
     fun execute(currentUserId: String): Flow<DashboardSummary> {
         return combine(
             groupRepository.getAllGroups(),
-            expenseRepository.getRecentExpenses(20),
+            expenseRepository.getRecentExpenses(10),
             settlementRepository.getRecentSettlements(10)
         ) { groups, recentExpenses, recentSettlements ->
             var totalPaidByYou = 0.0

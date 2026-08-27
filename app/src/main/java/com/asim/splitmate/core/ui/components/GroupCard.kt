@@ -43,6 +43,10 @@ import com.asim.splitmate.core.utils.CurrencyFormatter
 import com.asim.splitmate.domain.model.Group
 import com.asim.splitmate.domain.model.GroupType
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+
 @Composable
 fun GroupCard(
     group: Group,
@@ -55,45 +59,63 @@ fun GroupCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
             .clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val icon = when (group.type) {
-                GroupType.TRIP -> Icons.Filled.BeachAccess
-                GroupType.HOME -> Icons.Filled.HomeWork
-                GroupType.COUPLE -> Icons.Filled.Favorite
-                GroupType.OTHER -> Icons.Filled.Group
+            val (icon, typeLabel) = when (group.type) {
+                GroupType.TRIP -> Icons.Filled.BeachAccess to "Trip"
+                GroupType.HOME -> Icons.Filled.HomeWork to "Home"
+                GroupType.COUPLE -> Icons.Filled.Favorite to "Couple"
+                GroupType.OTHER -> Icons.Filled.Group to "Other"
             }
 
             Box(
                 modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(EmeraldPrimary.copy(alpha = 0.15f)),
+                    .size(52.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(EmeraldPrimary.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = group.name,
                     tint = EmeraldPrimary,
-                    modifier = Modifier.size(26.dp)
+                    modifier = Modifier.size(28.dp)
                 )
             }
 
             Spacer(modifier = Modifier.width(14.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = group.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = group.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Surface(
+                        color = EmeraldPrimary.copy(alpha = 0.1f),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            text = typeLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = EmeraldPrimary,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "${group.members.size} members",
                     style = MaterialTheme.typography.bodyMedium,
@@ -107,10 +129,11 @@ fun GroupCard(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = CurrencyFormatter.format(group.totalExpense, group.currencySymbol),
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.ExtraBold,
                     color = EmeraldPrimary
                 )
             }

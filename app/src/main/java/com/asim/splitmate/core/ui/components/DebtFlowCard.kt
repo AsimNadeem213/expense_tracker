@@ -34,6 +34,10 @@ import com.asim.splitmate.core.ui.theme.GreenOwedContainer
 import com.asim.splitmate.core.utils.CurrencyFormatter
 import com.asim.splitmate.domain.model.SimplifiedDebt
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+
 @Composable
 fun DebtFlowCard(
     debt: SimplifiedDebt,
@@ -45,9 +49,9 @@ fun DebtFlowCard(
     val isUserCreditor = debt.toUserId == currentUserId
 
     val containerColor = when {
-        isUserDebtor -> CoralOweContainer
-        isUserCreditor -> GreenOwedContainer
-        else -> MaterialTheme.colorScheme.surfaceVariant
+        isUserDebtor -> CoralOweContainer.copy(alpha = 0.6f)
+        isUserCreditor -> GreenOwedContainer.copy(alpha = 0.6f)
+        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
     }
 
     val accentColor = when {
@@ -57,8 +61,12 @@ fun DebtFlowCard(
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp)),
         colors = CardDefaults.cardColors(containerColor = containerColor),
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.25f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
@@ -67,27 +75,49 @@ fun DebtFlowCard(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = if (isUserDebtor) "You" else debt.fromUserName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Surface(
+                        color = accentColor.copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = if (isUserDebtor) "You" else debt.fromUserName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+
                     Spacer(modifier = Modifier.width(6.dp))
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = "owes",
-                        modifier = Modifier.size(16.dp),
-                        tint = accentColor
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(accentColor.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = "owes",
+                            modifier = Modifier.size(14.dp),
+                            tint = accentColor
+                        )
+                    }
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = if (isUserCreditor) "You" else debt.toUserName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
+
+                    Surface(
+                        color = accentColor.copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = if (isUserCreditor) "You" else debt.toUserName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 val label = when {
                     isUserDebtor -> "You owe ${debt.toUserName}"
@@ -108,14 +138,15 @@ fun DebtFlowCard(
                     fontWeight = FontWeight.ExtraBold,
                     color = accentColor
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Button(
                     onClick = { onSettleClick(debt) },
                     colors = ButtonDefaults.buttonColors(containerColor = accentColor),
-                    modifier = Modifier.height(32.dp),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.height(34.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 0.dp)
                 ) {
-                    Text(text = "Settle", style = MaterialTheme.typography.labelSmall)
+                    Text(text = "Settle", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                 }
             }
         }

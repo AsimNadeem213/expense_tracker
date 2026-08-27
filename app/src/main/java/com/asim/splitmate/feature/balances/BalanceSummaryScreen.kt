@@ -33,12 +33,18 @@ import com.asim.splitmate.core.ui.components.ExpenseMateTopBar
 import com.asim.splitmate.core.ui.theme.EmeraldPrimary
 import com.asim.splitmate.domain.model.SimplifiedDebt
 
+import androidx.activity.compose.BackHandler
+
 @Composable
 fun BalanceSummaryScreen(
     viewModel: BalancesViewModel,
     onNavigateToRecordSettlement: (String, String, String, Double) -> Unit,
     onNavigateTab: (String) -> Unit
 ) {
+    BackHandler {
+        onNavigateTab("dashboard")
+    }
+
     val state by viewModel.uiState.collectAsState()
 
     Scaffold(

@@ -68,6 +68,7 @@ class GroupViewModel(
     }
 
     fun selectGroup(groupId: String) {
+        com.asim.splitmate.core.notification.NotificationHelper.subscribeToGroupTopic(groupId)
         viewModelScope.launch {
             groupRepository.getGroupById(groupId).collect { group ->
                 _uiState.value = _uiState.value.copy(currentGroup = group)

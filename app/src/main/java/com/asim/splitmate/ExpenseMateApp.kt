@@ -30,6 +30,8 @@ class ExpenseMateApp : Application() {
             androidContext(this@ExpenseMateApp)
             modules(appModule)
         }
+
+        com.asim.splitmate.core.notification.NotificationHelper.createNotificationChannel(this)
     }
 
     private suspend fun seedSampleDataIfEmpty(userDao: UserDao, groupDao: GroupDao, expenseDao: ExpenseDao) {

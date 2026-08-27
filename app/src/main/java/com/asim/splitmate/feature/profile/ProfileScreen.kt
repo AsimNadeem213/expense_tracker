@@ -61,12 +61,18 @@ import com.asim.splitmate.core.ui.components.ExpenseMateBottomBar
 import com.asim.splitmate.core.ui.components.ExpenseMateTopBar
 import com.asim.splitmate.core.ui.theme.EmeraldPrimary
 
+import androidx.activity.compose.BackHandler
+
 @Composable
 fun ProfileScreen(
     viewModel: ProfileViewModel,
     onLogout: () -> Unit,
     onNavigateTab: (String) -> Unit
 ) {
+    BackHandler {
+        onNavigateTab("dashboard")
+    }
+
     val state by viewModel.uiState.collectAsState()
     val user = state.currentUser
     val context = LocalContext.current
@@ -194,8 +200,8 @@ fun ProfileScreen(
             item {
                 ProfileOptionRow(
                     icon = Icons.Filled.Download,
-                    title = "Export Group Expenses (CSV)",
-                    subtitle = "Generate & share spreadsheet reports",
+                    title = "Export Group Expenses (XLSX Table)",
+                    subtitle = "Generate & share formatted Excel spreadsheet table",
                     onClick = { viewModel.exportExpenses(context) }
                 )
             }
@@ -227,7 +233,7 @@ fun ProfileScreen(
                         Spacer(modifier = Modifier.width(14.dp))
                         Column {
                             Text(
-                                text = "SplitMate v1.0.0",
+                                text = "SplitMate version: 1.0",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold
                             )

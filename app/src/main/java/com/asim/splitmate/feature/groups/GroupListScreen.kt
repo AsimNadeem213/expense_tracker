@@ -51,6 +51,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 
+import androidx.activity.compose.BackHandler
+
 @Composable
 fun GroupListScreen(
     viewModel: GroupViewModel,
@@ -60,6 +62,10 @@ fun GroupListScreen(
     onNavigateToQrScanner: () -> Unit,
     onNavigateTab: (String) -> Unit
 ) {
+    BackHandler {
+        onNavigateTab("dashboard")
+    }
+
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     var groupToDelete by remember { mutableStateOf<Group?>(null) }
@@ -242,24 +248,6 @@ fun GroupListScreen(
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
-                        Row {
-                            TextButton(onClick = onNavigateToQrScanner) {
-                                Icon(
-                                    Icons.Filled.QrCodeScanner,
-                                    contentDescription = null,
-                                    modifier = Modifier.padding(end = 4.dp)
-                                )
-                                Text("Scan QR")
-                            }
-                            TextButton(onClick = { showJoinDialog = true }) {
-                                Icon(
-                                    Icons.Filled.GroupAdd,
-                                    contentDescription = null,
-                                    modifier = Modifier.padding(end = 4.dp)
-                                )
-                                Text("Join Code")
-                            }
-                        }
                     }
                 }
 

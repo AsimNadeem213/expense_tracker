@@ -62,6 +62,8 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
+import androidx.activity.compose.BackHandler
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReportScreen(
@@ -69,6 +71,10 @@ fun ReportScreen(
     onNavigateToExpenseDetail: (String) -> Unit = {},
     onNavigateTab: (String) -> Unit
 ) {
+    BackHandler {
+        onNavigateTab("dashboard")
+    }
+
     val state by viewModel.uiState.collectAsState()
     val dateFormatter = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
 

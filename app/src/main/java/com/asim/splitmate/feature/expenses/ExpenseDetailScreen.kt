@@ -188,6 +188,28 @@ fun ExpenseDetailScreen(
                     }
                 }
 
+                if (expense.notes.isNotBlank()) {
+                    item {
+                        Text(
+                            text = "Notes",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        ) {
+                            Text(
+                                text = expense.notes,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                    }
+                }
+
                 item {
                     Text(
                         text = "Split Breakdown (${expense.splitType.name})",

@@ -110,6 +110,16 @@ class AuthRepositoryImpl(
                 email.isNotBlank() -> email.trim()
                 else -> "${cleanName.lowercase().replace(" ", "")}@splitmate.app"
             }
+
+            val auth = FirebaseHelper.auth
+            if (auth != null && auth.currentUser == null) {
+                try {
+                    auth.signInAnonymously().await()
+                } catch (e: Exception) {
+                    android.util.Log.e("AuthRepository", "Firebase anonymous sign in failed: ${e.message}")
+                }
+            }
+
             val userId = FirebaseHelper.currentUserId ?: ("usr_" + java.util.UUID.randomUUID().toString().replace("-", "").take(16))
 
             val guestUser = User(
@@ -121,6 +131,7 @@ class AuthRepositoryImpl(
             )
             userDao.clearCurrentUser()
             userDao.insertUser(UserEntity.fromDomain(guestUser))
+            realtimeDatabaseDataSource.syncUser(guestUser)
             Resource.Success(guestUser)
         } catch (e: Exception) {
             Resource.Error(e.message ?: "Failed to create account profile", e)

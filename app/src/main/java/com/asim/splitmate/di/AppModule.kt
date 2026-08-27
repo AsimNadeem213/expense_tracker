@@ -53,7 +53,7 @@ val appModule = module {
     single { get<ExpenseMateDatabase>().settlementDao() }
 
     // Remote (Firebase Realtime Database)
-    single { RealtimeDatabaseDataSource() }
+    single { RealtimeDatabaseDataSource(androidContext()) }
 
     // Repositories
     single<AuthRepository> { AuthRepositoryImpl(get(), get(), get(), androidContext()) }
@@ -63,7 +63,7 @@ val appModule = module {
     single<UserRepository> { UserRepositoryImpl(get(), get()) }
 
     // Use Cases
-    factory { AddExpenseUseCase(get()) }
+    factory { AddExpenseUseCase(get(), get(), androidContext()) }
     factory { CalculateGroupBalancesUseCase(get(), get(), get()) }
     factory { GetDashboardDataUseCase(get(), get(), get(), get(), get(), get(), get()) }
 

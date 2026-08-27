@@ -23,7 +23,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
 
-class RealtimeDatabaseDataSource {
+class RealtimeDatabaseDataSource(
+    private val context: android.content.Context? = null
+) {
     private val db get() = FirebaseHelper.database
 
     private var isRealtimeSyncStarted = false
@@ -233,6 +235,10 @@ class RealtimeDatabaseDataSource {
                     val createdByExp = expSnap.child("createdBy").getValue(String::class.java) ?: paidByUserId
                     val isEdited = expSnap.child("isEdited").getValue(Boolean::class.java) ?: false
 
+                    val existingExp = expenseDao.getExpenseById(expId)
+                    val currentUid = FirebaseHelper.currentUserId ?: userId
+                    val isNewRemoteExpense = (existingExp == null) && (paidByUserId != currentUid) && (createdByExp != currentUid)
+
                     val expenseEntity = ExpenseEntity(
                         id = expId,
                         groupId = groupId,
@@ -248,6 +254,17 @@ class RealtimeDatabaseDataSource {
                         isEdited = isEdited
                     )
                     expenseDao.insertExpense(expenseEntity)
+
+                    if (isNewRemoteExpense && context != null) {
+                        com.asim.splitmate.core.notification.NotificationHelper.showExpenseAddedNotification(
+                            context = context,
+                            groupName = name,
+                            expenseTitle = title,
+                            amount = amount,
+                            currencySymbol = currencySymbol,
+                            paidByName = paidByUserName
+                        )
+                    }
 
                     val splitAmount = if (membersList.isNotEmpty()) amount / membersList.size else amount
                     val splitEntities = membersList.map { m ->
@@ -336,6 +353,18 @@ class RealtimeDatabaseDataSource {
         return try {
             val database = db ?: return Resource.Error("Firebase not initialized")
 
+            // Ensure Firebase Auth session exists (Anonymous auth fallback if null)
+            val auth = FirebaseHelper.auth
+            if (auth != null && auth.currentUser == null) {
+                try {
+                    auth.signInAnonymously().await()
+                } catch (e: Exception) {
+                    Log.e("FirebaseSync", "Anonymous auth failed: ${e.message}")
+                }
+            }
+
+            val activeUserId = FirebaseHelper.currentUserId ?: userId
+
             // 1. Direct O(1) lookup via /inviteCodes/{cleanCode}
             var targetGroupId: String? = null
             try {
@@ -343,20 +372,27 @@ class RealtimeDatabaseDataSource {
                     database.getReference("inviteCodes").child(cleanCode).get().await()
                 }
                 targetGroupId = codeSnap?.getValue(String::class.java)
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.e("FirebaseSync", "Direct invite code lookup failed: ${e.message}")
+            }
 
             // 2. Fallback scan across /groups if inviteCodes index is missing
             if (targetGroupId.isNullOrBlank()) {
-                val groupsSnap = withTimeoutOrNull(5000L) {
-                    database.getReference("groups").get().await()
-                } ?: return Resource.Error("Network error or timeout. Please check your internet connection.")
-
-                for (groupSnap in groupsSnap.children) {
-                    val code = groupSnap.child("inviteCode").getValue(String::class.java) ?: continue
-                    if (code.equals(cleanCode, ignoreCase = true)) {
-                        targetGroupId = groupSnap.child("id").getValue(String::class.java) ?: groupSnap.key
-                        break
+                try {
+                    val groupsSnap = withTimeoutOrNull(5000L) {
+                        database.getReference("groups").get().await()
                     }
+                    if (groupsSnap != null) {
+                        for (groupSnap in groupsSnap.children) {
+                            val code = groupSnap.child("inviteCode").getValue(String::class.java) ?: continue
+                            if (code.equals(cleanCode, ignoreCase = true)) {
+                                targetGroupId = groupSnap.child("id").getValue(String::class.java) ?: groupSnap.key
+                                break
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("FirebaseSync", "Groups scan fallback failed: ${e.message}")
                 }
             }
 
@@ -367,47 +403,71 @@ class RealtimeDatabaseDataSource {
             // Register user in the remote group node
             val groupRef = database.getReference("groups").child(targetGroupId)
 
-            val existingMemberIdsSnap = groupRef.child("memberIds").get().await()
-            val existingIds = mutableListOf<String>()
-            for (mSnap in existingMemberIdsSnap.children) {
-                mSnap.getValue(String::class.java)?.let { existingIds.add(it) }
+            val existingMemberIdsSnap = try {
+                groupRef.child("memberIds").get().await()
+            } catch (e: Exception) {
+                Log.e("FirebaseSync", "Failed to fetch memberIds: ${e.message}")
+                null
             }
-            if (!existingIds.contains(userId)) {
+
+            val existingIds = mutableListOf<String>()
+            if (existingMemberIdsSnap != null) {
+                for (mSnap in existingMemberIdsSnap.children) {
+                    mSnap.getValue(String::class.java)?.let { existingIds.add(it) }
+                }
+            }
+
+            if (!existingIds.contains(activeUserId)) {
                 // Check if group already has recorded expenses on Firebase or in local Room database
-                val expensesSnap = groupRef.child("expenses").get().await()
+                val expensesSnap = try { groupRef.child("expenses").get().await() } catch (_: Exception) { null }
                 val localExpenses = expenseDao.getExpensesForGroupSync(targetGroupId)
-                if (expensesSnap.childrenCount > 0 || localExpenses.isNotEmpty()) {
+                val remoteExpenseCount = expensesSnap?.childrenCount ?: 0L
+
+                if (remoteExpenseCount > 0 || localExpenses.isNotEmpty()) {
                     return Resource.Error("New members cannot join this group because expenses have already been recorded.")
                 }
-                existingIds.add(userId)
-                groupRef.child("memberIds").setValue(existingIds).await()
+                existingIds.add(activeUserId)
+                try {
+                    groupRef.child("memberIds").setValue(existingIds).await()
+                } catch (e: Exception) {
+                    Log.e("FirebaseSync", "Failed to set memberIds: ${e.message}")
+                }
             }
 
             val currentUserDb = userDao.getCurrentUserSync()
-            val nameToUse = if (userName.isNotBlank()) userName else (currentUserDb?.name ?: "Member")
+            val nameToUse = if (userName.isNotBlank() && userName != "User" && userName != "Guest User") userName
+                            else (currentUserDb?.name?.takeIf { it.isNotBlank() && it != "You" } ?: "Member")
             val emailToUse = if (userEmail.isNotBlank()) userEmail else (currentUserDb?.email ?: "")
 
-            val existingMemberNamesSnap = groupRef.child("memberNames").get().await()
+            val existingMemberNamesSnap = try { groupRef.child("memberNames").get().await() } catch (_: Exception) { null }
             val existingNames = mutableListOf<String>()
-            for (nSnap in existingMemberNamesSnap.children) {
-                nSnap.getValue(String::class.java)?.let { existingNames.add(it) }
+            if (existingMemberNamesSnap != null) {
+                for (nSnap in existingMemberNamesSnap.children) {
+                    nSnap.getValue(String::class.java)?.let { existingNames.add(it) }
+                }
             }
             if (!existingNames.contains(nameToUse)) {
                 existingNames.add(nameToUse)
-                groupRef.child("memberNames").setValue(existingNames).await()
+                try {
+                    groupRef.child("memberNames").setValue(existingNames).await()
+                } catch (_: Exception) {}
             }
 
-            // Update member map object under /groups/{groupId}/members/{userId}
-            val memberMap = mapOf("id" to userId, "name" to nameToUse, "email" to emailToUse)
-            groupRef.child("members").child(userId).setValue(memberMap).await()
-
-            // Also sync user profile under /users/{userId}
+            // Update member map object under /groups/{groupId}/members/{activeUserId}
+            val memberMap = mapOf("id" to activeUserId, "name" to nameToUse, "email" to emailToUse)
             try {
-                database.getReference("users").child(userId).setValue(memberMap).await()
+                groupRef.child("members").child(activeUserId).setValue(memberMap).await()
+            } catch (e: Exception) {
+                Log.e("FirebaseSync", "Failed to set member map: ${e.message}")
+            }
+
+            // Also sync user profile under /users/{activeUserId}
+            try {
+                database.getReference("users").child(activeUserId).setValue(memberMap).await()
             } catch (_: Exception) {}
 
             // Fetch and sync all remote group data to local database
-            fetchAndSyncRemoteData(userId, nameToUse, groupDao, userDao, expenseDao, settlementDao)
+            fetchAndSyncRemoteData(activeUserId, nameToUse, groupDao, userDao, expenseDao, settlementDao)
 
             val groupEntity = groupDao.getGroupByIdSync(targetGroupId)
             if (groupEntity != null) {
@@ -416,10 +476,15 @@ class RealtimeDatabaseDataSource {
                 val totalSpent = expenses.sumOf { it.amount }
                 Resource.Success(groupEntity.toDomain(members, totalSpent))
             } else {
-                Resource.Error("Group joined on server but failed to sync locally.")
+                Resource.Error("Group joined on server, but failed to sync locally. Please refresh.")
             }
         } catch (e: Exception) {
-            Resource.Error(e.message ?: "Failed to join group with invite code")
+            val userMsg = when {
+                e.message?.contains("Permission denied", ignoreCase = true) == true ->
+                    "Permission denied by server. Please check your Firebase Realtime Database Security Rules."
+                else -> e.message ?: "Failed to join group with invite code"
+            }
+            Resource.Error(userMsg)
         }
     }
 
@@ -446,6 +511,16 @@ class RealtimeDatabaseDataSource {
                 return false
             }
             Log.d("FirebaseSync", "Syncing group to Firebase: ${group.id} (${group.name})")
+
+            // Ensure Firebase Auth session exists (Anonymous auth fallback if null)
+            val auth = FirebaseHelper.auth
+            if (auth != null && auth.currentUser == null) {
+                try {
+                    auth.signInAnonymously().await()
+                } catch (e: Exception) {
+                    Log.e("FirebaseSync", "Anonymous auth failed during syncGroup: ${e.message}")
+                }
+            }
 
             val activeUid = FirebaseHelper.currentUserId ?: group.createdBy
             val memberIdsList = group.members.map { it.id }.toMutableList()

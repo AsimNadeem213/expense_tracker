@@ -13,7 +13,7 @@ android {
 
     defaultConfig {
         applicationId = "com.asim.splitmate"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
@@ -71,10 +71,14 @@ dependencies {
     // WorkManager
     implementation(libs.androidx.work.runtime.ktx)
 
-    // Firebase (Auth & Realtime Database)
+    // Firebase (Auth, Realtime Database & FCM Messaging)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth.ktx)
     implementation(libs.firebase.database.ktx)
+    implementation(libs.firebase.messaging.ktx)
+
+    // Apache POI for Excel XLSX Export
+    implementation(libs.poi.ooxml)
 
     // Kotlinx Serialization
     implementation(libs.kotlinx.serialization.json)

@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.asim.splitmate.core.utils.CsvExportHelper
 import com.asim.splitmate.data.local.dao.UserDao
 import com.asim.splitmate.data.local.entity.UserEntity
+import com.asim.splitmate.domain.model.Expense
 import com.asim.splitmate.domain.model.User
 import com.asim.splitmate.domain.repository.AuthRepository
 import com.asim.splitmate.domain.repository.ExpenseRepository
@@ -88,12 +89,17 @@ class ProfileViewModel(
                     return@launch
                 }
 
-                val mainGroup = groups.first()
-                val expenses = expenseRepository.getExpensesForGroup(mainGroup.id).first()
+                val expensesMap = mutableMapOf<String, List<Expense>>()
+                for (g in groups) {
+                    val expList = expenseRepository.getExpensesForGroup(g.id).first()
+                    expensesMap[g.id] = expList
+                }
 
-                val csvData = CsvExportHelper.generateGroupCsv(mainGroup, expenses, emptyList())
-                val file = File(context.cacheDir, "SplitMate_Expenses_Report.csv")
-                file.writeText(csvData)
+                val file = com.asim.splitmate.core.utils.XlsxExportHelper.generateReportXlsx(
+                    context = context,
+                    groups = groups,
+                    expensesMap = expensesMap
+                )
 
                 val uri: Uri = FileProvider.getUriForFile(
                     context,
@@ -102,14 +108,14 @@ class ProfileViewModel(
                 )
 
                 val intent = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/csv"
+                    type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     putExtra(Intent.EXTRA_STREAM, uri)
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
-                context.startActivity(Intent.createChooser(intent, "Share Expense Report"))
+                context.startActivity(Intent.createChooser(intent, "Share Expense Report (XLSX)"))
                 _uiState.value = _uiState.value.copy(isLoading = false)
             } catch (e: Exception) {
-                // Fallback text share if file provider is not configured
+                // Fallback text share if file provider or spreadsheet reader fails
                 val groups = groupRepository.getAllGroups().first()
                 if (groups.isNotEmpty()) {
                     val mainGroup = groups.first()

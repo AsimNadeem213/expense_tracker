@@ -68,6 +68,10 @@ import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.foundation.clickable
 import com.asim.splitmate.core.ui.components.GroupQrDialog
 
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+
 @Composable
 fun GroupDetailScreen(
     groupId: String,
@@ -86,6 +90,7 @@ fun GroupDetailScreen(
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showQrDialog by remember { mutableStateOf(false) }
+    var showActionMenu by remember { mutableStateOf(false) }
 
     val group = state.currentGroup
     val balancesRes = state.balancesResult
@@ -149,15 +154,47 @@ fun GroupDetailScreen(
                             Icon(Icons.Filled.QrCode2, contentDescription = "Show Group QR Code")
                         }
                         if (isGroupCreator) {
-                            IconButton(onClick = { onNavigateToEditGroup(group.id) }) {
-                                Icon(Icons.Filled.Edit, contentDescription = "Edit Group")
-                            }
-                            IconButton(onClick = { showDeleteDialog = true }) {
-                                Icon(
-                                    Icons.Filled.Delete,
-                                    contentDescription = "Delete Group",
-                                    tint = MaterialTheme.colorScheme.error
-                                )
+                            Box {
+                                IconButton(onClick = { showActionMenu = true }) {
+                                    Icon(Icons.Filled.MoreVert, contentDescription = "More Options")
+                                }
+                                DropdownMenu(
+                                    expanded = showActionMenu,
+                                    onDismissRequest = { showActionMenu = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Edit Group") },
+                                        onClick = {
+                                            showActionMenu = false
+                                            onNavigateToEditGroup(group.id)
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Filled.Edit,
+                                                contentDescription = "Edit Group"
+                                            )
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                "Delete Group",
+                                                color = MaterialTheme.colorScheme.error
+                                            )
+                                        },
+                                        onClick = {
+                                            showActionMenu = false
+                                            showDeleteDialog = true
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Filled.Delete,
+                                                contentDescription = "Delete Group",
+                                                tint = MaterialTheme.colorScheme.error
+                                            )
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -268,7 +305,7 @@ fun GroupDetailScreen(
                     Tab(
                         selected = selectedTabIndex == 1,
                         onClick = { selectedTabIndex = 1 },
-                        text = { Text("Balances & Debt") },
+                        text = { Text("Settlements") },
                         icon = { Icon(Icons.Filled.AccountBalanceWallet, contentDescription = null) }
                     )
                     Tab(

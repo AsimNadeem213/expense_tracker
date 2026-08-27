@@ -1,6 +1,7 @@
 package com.asim.splitmate.core.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -33,6 +34,18 @@ import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun ExpenseMateNavHost(navController: NavHostController) {
+    val navigateToBottomTab: (String) -> Unit = { targetRoute ->
+        if (targetRoute != navController.currentDestination?.route) {
+            navController.navigate(targetRoute) {
+                popUpTo(Screen.Dashboard.route) {
+                    saveState = true
+                }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = Screen.Splash.route
@@ -94,7 +107,7 @@ fun ExpenseMateNavHost(navController: NavHostController) {
                 onNavigateToEditGroup = { groupId -> navController.navigate(Screen.EditGroup.createRoute(groupId)) },
                 onNavigateToAddExpense = { groupId -> navController.navigate(Screen.AddExpense.createRoute(groupId)) },
                 onNavigateToExpenseDetail = { expId -> navController.navigate(Screen.ExpenseDetail.createRoute(expId)) },
-                onNavigateTab = { route -> navController.navigate(route) { launchSingleTop = true } }
+                onNavigateTab = navigateToBottomTab
             )
         }
 
@@ -106,7 +119,7 @@ fun ExpenseMateNavHost(navController: NavHostController) {
                 onNavigateToCreateGroup = { navController.navigate(Screen.CreateGroup.route) },
                 onNavigateToEditGroup = { groupId -> navController.navigate(Screen.EditGroup.createRoute(groupId)) },
                 onNavigateToQrScanner = { navController.navigate(Screen.QrScanner.route) },
-                onNavigateTab = { route -> navController.navigate(route) { launchSingleTop = true } }
+                onNavigateTab = navigateToBottomTab
             )
         }
 
@@ -203,7 +216,7 @@ fun ExpenseMateNavHost(navController: NavHostController) {
                 onNavigateToRecordSettlement = { gId, pId, rId, amt ->
                     navController.navigate(Screen.RecordSettlement.createRoute(gId, pId, rId, amt))
                 },
-                onNavigateTab = { route -> navController.navigate(route) { launchSingleTop = true } }
+                onNavigateTab = navigateToBottomTab
             )
         }
 
@@ -237,7 +250,7 @@ fun ExpenseMateNavHost(navController: NavHostController) {
             ProfileScreen(
                 viewModel = profileViewModel,
                 onLogout = { navController.navigate(Screen.Splash.route) { popUpTo(0) { inclusive = true } } },
-                onNavigateTab = { route -> navController.navigate(route) { launchSingleTop = true } }
+                onNavigateTab = navigateToBottomTab
             )
         }
 
@@ -246,7 +259,7 @@ fun ExpenseMateNavHost(navController: NavHostController) {
             ReportScreen(
                 viewModel = reportViewModel,
                 onNavigateToExpenseDetail = { expId -> navController.navigate(Screen.ExpenseDetail.createRoute(expId)) },
-                onNavigateTab = { route -> navController.navigate(route) { launchSingleTop = true } }
+                onNavigateTab = navigateToBottomTab
             )
         }
 

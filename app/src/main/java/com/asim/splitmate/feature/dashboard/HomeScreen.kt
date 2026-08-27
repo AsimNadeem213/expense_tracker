@@ -149,53 +149,209 @@ fun HomeScreen(
                 }
 
                 item {
-                    // Balance Summary Card
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                        shape = MaterialTheme.shapes.medium
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(24.dp)),
+                        colors = androidx.compose.material3.CardDefaults.cardColors(
+                            containerColor = androidx.compose.ui.graphics.Color.Transparent
+                        ),
+                        elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 6.dp)
                     ) {
-                        Column(modifier = Modifier.padding(20.dp)) {
-                            Text(
-                                text = "Net Balance",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            val net = summary?.netOverallBalance ?: 0.0
-                            Text(
-                                text = CurrencyFormatter.formatSigned(net),
-                                style = MaterialTheme.typography.displayLarge,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = if (net >= 0) EmeraldPrimary else CoralOwe
-                            )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                                        colors = listOf(
+                                            androidx.compose.ui.graphics.Color(0xFF0F766E), // Deep Teal
+                                            androidx.compose.ui.graphics.Color(0xFF042F2C)  // Dark Emerald
+                                        )
+                                    )
+                                )
+                                .padding(20.dp)
+                        ) {
+                            Column {
+                                // Header Row: Net Balance Title & Total Paid
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Column {
+                                        androidx.compose.material3.Surface(
+                                            color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f),
+                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                                        ) {
+                                            Text(
+                                                text = "NET BALANCE",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f),
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                            )
+                                        }
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                                        Spacer(modifier = Modifier.height(8.dp))
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                BalanceSubItem(
-                                    label = "Total Paid",
-                                    amount = summary?.totalYouPaid ?: 0.0,
-                                    color = EmeraldPrimary,
-                                    icon = Icons.Filled.Payments
+                                        val net = summary?.netOverallBalance ?: 0.0
+                                        val netColor = when {
+                                            net > 0 -> androidx.compose.ui.graphics.Color(0xFF34D399) // Mint Green
+                                            net < 0 -> androidx.compose.ui.graphics.Color(0xFFF87171) // Light Coral
+                                            else -> androidx.compose.ui.graphics.Color.White
+                                        }
+
+                                        Text(
+                                            text = CurrencyFormatter.formatSigned(net),
+                                            style = MaterialTheme.typography.headlineLarge,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = netColor
+                                        )
+                                    }
+
+                                    // Total Paid Badge
+                                    androidx.compose.material3.Surface(
+                                        color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.12f),
+                                        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(28.dp)
+                                                    .clip(CircleShape)
+                                                    .background(androidx.compose.ui.graphics.Color(0xFF34D399).copy(alpha = 0.25f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.Payments,
+                                                    contentDescription = "Total Paid",
+                                                    tint = androidx.compose.ui.graphics.Color(0xFF34D399),
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Column {
+                                                Text(
+                                                    text = "Total Paid",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f)
+                                                )
+                                                Text(
+                                                    text = CurrencyFormatter.format(summary?.totalYouPaid ?: 0.0),
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = androidx.compose.ui.graphics.Color.White
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(20.dp))
+
+                                // Divider Line
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(1.dp)
+                                        .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f))
                                 )
 
-                                BalanceSubItem(
-                                    label = "You Owe",
-                                    amount = summary?.totalYouOwe ?: 0.0,
-                                    color = CoralOwe,
-                                    icon = Icons.Filled.ArrowDownward
-                                )
+                                Spacer(modifier = Modifier.height(16.dp))
 
-                                BalanceSubItem(
-                                    label = "You are Owed",
-                                    amount = summary?.totalYouAreOwed ?: 0.0,
-                                    color = GreenOwed,
-                                    icon = Icons.Filled.ArrowUpward
-                                )
+                                // Bottom Sub Items: You Owe & You Are Owed
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    // You Owe Box
+                                    androidx.compose.material3.Surface(
+                                        color = androidx.compose.ui.graphics.Color(0xFFEF4444).copy(alpha = 0.18f),
+                                        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(32.dp)
+                                                    .clip(CircleShape)
+                                                    .background(androidx.compose.ui.graphics.Color(0xFFEF4444).copy(alpha = 0.3f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.ArrowDownward,
+                                                    contentDescription = "You Owe",
+                                                    tint = androidx.compose.ui.graphics.Color(0xFFFCA5A5),
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Column {
+                                                Text(
+                                                    text = "You Owe",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.75f)
+                                                )
+                                                Text(
+                                                    text = CurrencyFormatter.format(summary?.totalYouOwe ?: 0.0),
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = androidx.compose.ui.graphics.Color(0xFFFCA5A5)
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                    // You are Owed Box
+                                    androidx.compose.material3.Surface(
+                                        color = androidx.compose.ui.graphics.Color(0xFF10B981).copy(alpha = 0.18f),
+                                        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(32.dp)
+                                                    .clip(CircleShape)
+                                                    .background(androidx.compose.ui.graphics.Color(0xFF10B981).copy(alpha = 0.3f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.ArrowUpward,
+                                                    contentDescription = "You are Owed",
+                                                    tint = androidx.compose.ui.graphics.Color(0xFF6EE7B7),
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Column {
+                                                Text(
+                                                    text = "You are Owed",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.75f)
+                                                )
+                                                Text(
+                                                    text = CurrencyFormatter.format(summary?.totalYouAreOwed ?: 0.0),
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = androidx.compose.ui.graphics.Color(0xFF6EE7B7)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

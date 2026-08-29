@@ -460,39 +460,6 @@ fun HomeScreen(
     }
 }
 
-@Composable
-private fun BalanceSubItem(
-    label: String,
-    amount: Double,
-    color: androidx.compose.ui.graphics.Color,
-    icon: ImageVector
-) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .clip(CircleShape)
-                .background(color.copy(alpha = 0.2f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(imageVector = icon, contentDescription = label, tint = color, modifier = Modifier.size(18.dp))
-        }
-        Spacer(modifier = Modifier.width(8.dp))
-        Column {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-            )
-            Text(
-                text = CurrencyFormatter.format(amount),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = color
-            )
-        }
-    }
-}
 
 @Composable
 private fun QuickActionButton(

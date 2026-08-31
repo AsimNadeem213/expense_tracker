@@ -132,6 +132,50 @@ class ProfileViewModel(
         }
     }
 
+    fun exportExpensesPdf(context: Context) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            try {
+                val groups = groupRepository.getAllGroups().first()
+                if (groups.isEmpty()) {
+                    _uiState.value = _uiState.value.copy(isLoading = false, error = "No group expenses available to export")
+                    return@launch
+                }
+
+                val expensesMap = mutableMapOf<String, List<Expense>>()
+                for (g in groups) {
+                    val expList = expenseRepository.getExpensesForGroup(g.id).first()
+                    expensesMap[g.id] = expList
+                }
+
+                val file = com.asim.splitmate.core.utils.PdfExportHelper.generateReportPdf(
+                    context = context,
+                    groups = groups,
+                    expensesMap = expensesMap
+                )
+
+                val uri: Uri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    file
+                )
+
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "application/pdf"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                context.startActivity(Intent.createChooser(intent, "Share Expense Report (PDF)"))
+                _uiState.value = _uiState.value.copy(isLoading = false)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = "Failed to export PDF: ${e.message}"
+                )
+            }
+        }
+    }
+
     fun logout() {
         viewModelScope.launch {
             authRepository.logout()

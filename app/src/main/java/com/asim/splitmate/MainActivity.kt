@@ -17,7 +17,6 @@ import androidx.navigation.compose.rememberNavController
 import com.asim.splitmate.core.navigation.ExpenseMateNavHost
 import com.asim.splitmate.core.ui.theme.ExpenseMateTheme
 
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 
 class MainActivity : ComponentActivity() {
 
@@ -26,7 +25,6 @@ class MainActivity : ComponentActivity() {
     ) { _ -> }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 

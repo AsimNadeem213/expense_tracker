@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -194,6 +195,15 @@ fun ProfileScreen(
                     text = "Account Actions",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
+                )
+            }
+
+            item {
+                ProfileOptionRow(
+                    icon = Icons.Filled.PictureAsPdf,
+                    title = "Export Group Expenses (PDF Document)",
+                    subtitle = "Generate & share print-ready PDF expense report",
+                    onClick = { viewModel.exportExpensesPdf(context) }
                 )
             }
 

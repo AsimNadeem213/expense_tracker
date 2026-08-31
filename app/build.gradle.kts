@@ -19,31 +19,36 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        extra.set("myCustomProperty", "Expense_Mate_Vcode_${versionCode}_Vname_${versionName}")
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
     kotlinOptions {
         jvmTarget = "17"
     }
+
     buildFeatures {
         compose = true
     }
 }
 
 dependencies {
-    implementation("androidx.core:core-splashscreen:1.0.1")
+    //implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
@@ -68,9 +73,6 @@ dependencies {
     // Dependency Injection (Koin)
     implementation(libs.koin.android)
     implementation(libs.koin.androidx.compose)
-
-    // WorkManager
-    implementation(libs.androidx.work.runtime.ktx)
 
     // Firebase (Auth, Realtime Database & FCM Messaging)
     implementation(platform(libs.firebase.bom))

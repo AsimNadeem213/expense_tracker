@@ -12,6 +12,14 @@ import com.asim.splitmate.MainActivity
 import com.asim.splitmate.R
 import com.google.firebase.messaging.FirebaseMessaging
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import org.json.JSONObject
+import java.io.OutputStreamWriter
+import java.net.HttpURLConnection
+import java.net.URL
+
 object NotificationHelper {
 
     const val CHANNEL_ID = "group_expense_channel"
@@ -75,9 +83,6 @@ object NotificationHelper {
             val notificationManager =
                 context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.notify(System.currentTimeMillis().toInt(), notification)
-
-            // Also broadcast via FCM topic if FCM is registered
-            sendFcmTopicNotification(groupName, expenseTitle, formattedAmount, paidByName)
         } catch (e: Exception) {
             Log.e("NotificationHelper", "Failed to post notification: ${e.message}", e)
         }
@@ -108,13 +113,84 @@ object NotificationHelper {
         }
     }
 
-    private fun sendFcmTopicNotification(
+    fun sendExpenseNotificationToGroup(
+        groupId: String,
         groupName: String,
         expenseTitle: String,
-        formattedAmount: String,
-        paidByName: String
+        amount: Double,
+        currencySymbol: String,
+        paidByName: String,
+        paidByUserId: String,
+        context: Context? = null
     ) {
-        // Log FCM Topic Notification trigger
-        Log.d("NotificationHelper", "FCM Group Expense Notification triggered for '$groupName': $paidByName added '$expenseTitle' ($formattedAmount)")
+        if (context != null && !isNetworkAvailable(context)) {
+            Log.d("NotificationHelper", "Offline: Skipping FCM push notification")
+            return
+        }
+
+        val cleanId = groupId.replace("[^a-zA-Z0-9-_.~%]", "_")
+        val topic = "/topics/group_$cleanId"
+        val formattedAmount = "$currencySymbol${String.format("%.2f", amount)}"
+
+        val title = "New Expense in $groupName"
+        val body = "$paidByName added '$expenseTitle' ($formattedAmount)"
+
+        Log.d("NotificationHelper", "Triggering FCM Push to $topic for '$groupName'")
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val json = JSONObject().apply {
+                    put("to", topic)
+                    put("priority", "high")
+                    put("notification", JSONObject().apply {
+                        put("title", title)
+                        put("body", body)
+                        put("sound", "default")
+                    })
+                    put("data", JSONObject().apply {
+                        put("groupId", groupId)
+                        put("groupName", groupName)
+                        put("expenseTitle", expenseTitle)
+                        put("amount", amount.toString())
+                        put("currencySymbol", currencySymbol)
+                        put("paidByName", paidByName)
+                        put("paidByUserId", paidByUserId)
+                        put("createdBy", paidByUserId)
+                    })
+                }
+
+                val url = URL("https://fcm.googleapis.com/fcm/send")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.setRequestProperty("Authorization", "key=AIzaSyBZuPha4cQAeKItbOcZ3JfEkqlKP-SlZ_s")
+                conn.doOutput = true
+
+                OutputStreamWriter(conn.outputStream).use { writer ->
+                    writer.write(json.toString())
+                    writer.flush()
+                }
+
+                val responseCode = conn.responseCode
+                Log.d("NotificationHelper", "FCM Topic push response code: $responseCode")
+                conn.disconnect()
+            } catch (e: Exception) {
+                Log.e("NotificationHelper", "Error sending FCM topic push: ${e.message}", e)
+            }
+        }
+    }
+
+    private fun isNetworkAvailable(context: Context): Boolean {
+        return try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager ?: return false
+            val activeNetwork = cm.activeNetwork ?: return false
+            val capabilities = cm.getNetworkCapabilities(activeNetwork) ?: return false
+            capabilities.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                    (capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) ||
+                     capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                     capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET))
+        } catch (_: Exception) {
+            false
+        }
     }
 }

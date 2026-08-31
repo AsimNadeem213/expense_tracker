@@ -32,7 +32,13 @@ import org.koin.dsl.module
 
 import com.asim.splitmate.feature.reports.ReportViewModel
 
+import com.asim.splitmate.core.network.NetworkMonitor
+import com.asim.splitmate.core.network.NetworkMonitorImpl
+
 val appModule = module {
+
+    // Network Monitor
+    single<NetworkMonitor> { NetworkMonitorImpl(androidContext()) }
 
     // Dispatchers
     single<DispatchersProvider> { DefaultDispatchersProvider() }
@@ -53,7 +59,7 @@ val appModule = module {
     single { get<ExpenseMateDatabase>().settlementDao() }
 
     // Remote (Firebase Realtime Database)
-    single { RealtimeDatabaseDataSource(androidContext()) }
+    single { RealtimeDatabaseDataSource(androidContext(), get()) }
 
     // Repositories
     single<AuthRepository> { AuthRepositoryImpl(get(), get(), get(), androidContext()) }

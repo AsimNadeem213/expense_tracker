@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,9 +37,11 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.asim.splitmate.R
 import com.asim.splitmate.core.ui.theme.EmeraldPrimary
 import com.asim.splitmate.data.local.dao.UserDao
 import kotlinx.coroutines.delay
@@ -103,30 +106,15 @@ fun SplashScreen(
                 .alpha(alpha.value)
                 .padding(24.dp)
         ) {
-            // Animated Glowing Logo Container
-            Box(
+
+
+            Image(
+                painter = painterResource(R.drawable.app_ic),
+                contentDescription = "SplitMate Logo",
                 modifier = Modifier
                     .size(110.dp)
-                    .clip(RoundedCornerShape(28.dp))
-                    .background(
-                        brush = Brush.linearGradient(
-                            colors = listOf(
-                                EmeraldPrimary,
-                                Color(0xFF059669)
-                            )
-                        )
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Filled.AccountBalanceWallet,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(54.dp)
-                    )
-                }
-            }
+                    .clip(RoundedCornerShape(20.dp)) // Adjust radius as needed (e.g., 16.dp, 20.dp, 24.dp)
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
 

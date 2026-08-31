@@ -49,14 +49,36 @@ class ReportViewModel(
     private val _uiState = MutableStateFlow(ReportUiState())
     val uiState: StateFlow<ReportUiState> = _uiState.asStateFlow()
 
+    private var cachedExpenses: List<Expense> = emptyList()
+
     init {
-        loadReportData()
+        observeExpenses()
+    }
+
+    private fun observeExpenses() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+
+            val currentUser = userDao.getCurrentUserSync()
+            val currentUserId = currentUser?.id ?: "usr_you"
+            val currentUserName = currentUser?.name ?: "You"
+
+            expenseRepository.getAllExpenses().collect { allExpenses ->
+                cachedExpenses = allExpenses
+                computeAndEmitReportData(currentUserId, currentUserName)
+            }
+        }
     }
 
     fun selectPeriod(period: ReportPeriod) {
         _uiState.value = _uiState.value.copy(selectedPeriod = period)
         if (period != ReportPeriod.CUSTOM) {
-            loadReportData()
+            viewModelScope.launch {
+                val currentUser = userDao.getCurrentUserSync()
+                val currentUserId = currentUser?.id ?: "usr_you"
+                val currentUserName = currentUser?.name ?: "You"
+                computeAndEmitReportData(currentUserId, currentUserName)
+            }
         }
     }
 
@@ -81,70 +103,74 @@ class ReportViewModel(
             customStartDate = startCal.timeInMillis,
             customEndDate = endCal.timeInMillis
         )
-        loadReportData()
+        viewModelScope.launch {
+            val currentUser = userDao.getCurrentUserSync()
+            val currentUserId = currentUser?.id ?: "usr_you"
+            val currentUserName = currentUser?.name ?: "You"
+            computeAndEmitReportData(currentUserId, currentUserName)
+        }
     }
 
     fun loadReportData() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
-
             val currentUser = userDao.getCurrentUserSync()
             val currentUserId = currentUser?.id ?: "usr_you"
             val currentUserName = currentUser?.name ?: "You"
-
-            expenseRepository.getAllExpenses().collect { allExpenses ->
-                val (startTime, endTime) = getTimeBounds(
-                    _uiState.value.selectedPeriod,
-                    _uiState.value.customStartDate,
-                    _uiState.value.customEndDate
-                )
-
-                val filteredExpenses = allExpenses.filter { exp ->
-                    (exp.date in startTime..endTime) && (
-                        exp.paidByUserId == currentUserId || exp.splits.any { it.userId == currentUserId }
-                    )
-                }
-
-                var paidByYou = 0.0
-                var yourShare = 0.0
-                val categoryTotals = mutableMapOf<Category, Double>()
-
-                for (exp in filteredExpenses) {
-                    if (exp.paidByUserId == currentUserId) {
-                        paidByYou += exp.amount
-                    }
-                    val userSplit = exp.splits.find { it.userId == currentUserId }
-                    val userSplitAmt = userSplit?.amount ?: if (exp.paidByUserId == currentUserId) exp.amount else 0.0
-                    yourShare += userSplitAmt
-
-                    val cat = exp.category
-                    categoryTotals[cat] = (categoryTotals[cat] ?: 0.0) + userSplitAmt
-                }
-
-                val totalCatSpend = categoryTotals.values.sum().coerceAtLeast(1.0)
-                val catStats = categoryTotals.map { (cat, amount) ->
-                    CategoryExpenseStat(
-                        category = cat,
-                        totalAmount = amount,
-                        percentage = (amount / totalCatSpend * 100).toFloat()
-                    )
-                }.sortedByDescending { it.totalAmount }
-
-                val count = filteredExpenses.size
-                val avg = if (count > 0) yourShare / count else 0.0
-
-                _uiState.value = _uiState.value.copy(
-                    totalPaidByYou = paidByYou,
-                    totalYourShare = yourShare,
-                    totalExpenseCount = count,
-                    averageExpenseAmount = avg,
-                    categoryStats = catStats,
-                    periodExpenses = filteredExpenses,
-                    isLoading = false,
-                    currentUserName = currentUserName
-                )
-            }
+            computeAndEmitReportData(currentUserId, currentUserName)
         }
+    }
+
+    private fun computeAndEmitReportData(currentUserId: String, currentUserName: String) {
+        val (startTime, endTime) = getTimeBounds(
+            _uiState.value.selectedPeriod,
+            _uiState.value.customStartDate,
+            _uiState.value.customEndDate
+        )
+
+        val filteredExpenses = cachedExpenses.filter { exp ->
+            (exp.date in startTime..endTime) && (
+                exp.paidByUserId == currentUserId || exp.splits.any { it.userId == currentUserId }
+            )
+        }
+
+        var paidByYou = 0.0
+        var yourShare = 0.0
+        val categoryTotals = mutableMapOf<Category, Double>()
+
+        for (exp in filteredExpenses) {
+            if (exp.paidByUserId == currentUserId) {
+                paidByYou += exp.amount
+            }
+            val userSplit = exp.splits.find { it.userId == currentUserId }
+            val userSplitAmt = userSplit?.amount ?: if (exp.paidByUserId == currentUserId) exp.amount else 0.0
+            yourShare += userSplitAmt
+
+            val cat = exp.category
+            categoryTotals[cat] = (categoryTotals[cat] ?: 0.0) + userSplitAmt
+        }
+
+        val totalCatSpend = categoryTotals.values.sum().coerceAtLeast(1.0)
+        val catStats = categoryTotals.map { (cat, amount) ->
+            CategoryExpenseStat(
+                category = cat,
+                totalAmount = amount,
+                percentage = (amount / totalCatSpend * 100).toFloat()
+            )
+        }.sortedByDescending { it.totalAmount }
+
+        val count = filteredExpenses.size
+        val avg = if (count > 0) yourShare / count else 0.0
+
+        _uiState.value = _uiState.value.copy(
+            totalPaidByYou = paidByYou,
+            totalYourShare = yourShare,
+            totalExpenseCount = count,
+            averageExpenseAmount = avg,
+            categoryStats = catStats,
+            periodExpenses = filteredExpenses,
+            isLoading = false,
+            currentUserName = currentUserName
+        )
     }
 
     private fun getTimeBounds(period: ReportPeriod, customStart: Long?, customEnd: Long?): Pair<Long, Long> {

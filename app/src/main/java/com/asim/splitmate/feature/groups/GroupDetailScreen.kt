@@ -382,7 +382,7 @@ private fun ExpensesTab(
                 )
             }
         } else {
-            items(expenses) { expense ->
+            items(expenses, key = { it.id }) { expense ->
                 ExpenseCard(
                     expense = expense,
                     currencySymbol = currencySymbol,

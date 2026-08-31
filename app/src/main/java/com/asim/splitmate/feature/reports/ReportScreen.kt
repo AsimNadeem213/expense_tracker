@@ -178,16 +178,18 @@ fun ReportScreen(
                 CircularProgressIndicator(color = EmeraldPrimary)
             }
         } else {
-            LazyColumn(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-
-                item {
-                    // Time Period Filter Chips
+                // Fixed Header Section (Time Range Filters + Hero Summary Card Pinned at Top)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                ) {
+                    //Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "Time Range",
                         style = MaterialTheme.typography.titleMedium,
@@ -195,7 +197,7 @@ fun ReportScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(ReportPeriod.values()) { period ->
+                        items(ReportPeriod.entries.toTypedArray(), key = { it.name }) { period ->
                             FilterChip(
                                 selected = state.selectedPeriod == period,
                                 onClick = {
@@ -256,9 +258,9 @@ fun ReportScreen(
                             }
                         }
                     }
-                }
 
-                item {
+                    Spacer(modifier = Modifier.height(12.dp))
+
                     // Hero Summary Card
                     val periodLabel = if (state.selectedPeriod == ReportPeriod.CUSTOM && state.customStartDate != null && state.customEndDate != null) {
                         "${dateFormatter.format(Date(state.customStartDate!!))} - ${dateFormatter.format(Date(state.customEndDate!!))}"
@@ -335,7 +337,16 @@ fun ReportScreen(
                             }
                         }
                     }
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
+
+                // Scrollable Content Below Pinned Filter & Hero Summary Header
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
 
                 item {
                     // Secondary Metrics Row
@@ -478,7 +489,7 @@ fun ReportScreen(
                         )
                     }
                 } else {
-                    items(state.periodExpenses) { expense ->
+                    items(state.periodExpenses, key = { it.id }) { expense ->
                         ExpenseCard(
                             expense = expense,
                             onClick = { onNavigateToExpenseDetail(expense.id) }
@@ -492,4 +503,5 @@ fun ReportScreen(
             }
         }
     }
+}
 }

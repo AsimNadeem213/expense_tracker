@@ -76,8 +76,20 @@ class AddExpenseUseCase(
         if (result is Resource.Success) {
             try {
                 NotificationHelper.subscribeToGroupTopic(groupId)
+                val group = groupRepository.getGroupById(groupId).firstOrNull()
+                val groupName = group?.name ?: "Group"
+                val currencySymbol = group?.currencySymbol ?: com.asim.splitmate.core.common.Constants.DEFAULT_CURRENCY_SYMBOL
+                NotificationHelper.sendExpenseNotificationToGroup(
+                    groupId = groupId,
+                    groupName = groupName,
+                    expenseTitle = expense.title,
+                    amount = expense.amount,
+                    currencySymbol = currencySymbol,
+                    paidByName = paidByUser.name,
+                    paidByUserId = paidByUser.id
+                )
             } catch (e: Exception) {
-                // Ignore non-fatal subscription errors
+                // Ignore non-fatal notification errors
             }
         }
 

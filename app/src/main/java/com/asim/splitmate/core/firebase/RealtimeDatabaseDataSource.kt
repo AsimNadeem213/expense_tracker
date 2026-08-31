@@ -24,7 +24,8 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
 
 class RealtimeDatabaseDataSource(
-    private val context: android.content.Context? = null
+    private val context: android.content.Context? = null,
+    private val networkMonitor: com.asim.splitmate.core.network.NetworkMonitor? = null
 ) {
     private val db get() = FirebaseHelper.database
 
@@ -74,6 +75,10 @@ class RealtimeDatabaseDataSource(
         expenseDao: ExpenseDao,
         settlementDao: SettlementDao
     ) {
+        if (networkMonitor?.isCurrentlyOnline() == false) {
+            Log.d("FirebaseSync", "Offline: Skipping remote fetchAndSyncRemoteData")
+            return
+        }
         try {
             val database = db ?: return
             val dbRef = database.getReference("groups")
@@ -124,6 +129,7 @@ class RealtimeDatabaseDataSource(
                 }
 
                 remoteGroupIdsForUser.add(groupId)
+                com.asim.splitmate.core.notification.NotificationHelper.subscribeToGroupTopic(groupId)
 
                 val groupEntity = GroupEntity(
                     id = groupId,
@@ -349,6 +355,9 @@ class RealtimeDatabaseDataSource(
     ): Resource<Group> {
         val cleanCode = inviteCode.trim().uppercase()
         if (cleanCode.isBlank()) return Resource.Error("Invite code cannot be empty")
+        if (networkMonitor?.isCurrentlyOnline() == false) {
+            return Resource.Error("No internet connection available. Please turn on Wi-Fi or Mobile Data to join group.")
+        }
 
         return try {
             val database = db ?: return Resource.Error("Firebase not initialized")
@@ -489,6 +498,7 @@ class RealtimeDatabaseDataSource(
     }
 
     suspend fun syncUser(user: User) {
+        if (networkMonitor?.isCurrentlyOnline() == false) return
         try {
             db?.getReference("users")?.child(user.id)?.setValue(
                 mapOf(
@@ -505,6 +515,10 @@ class RealtimeDatabaseDataSource(
     }
 
     suspend fun syncGroup(group: Group): Boolean {
+        if (networkMonitor?.isCurrentlyOnline() == false) {
+            Log.d("FirebaseSync", "Offline: Skipping remote group sync")
+            return true
+        }
         return try {
             val database = db ?: run {
                 Log.e("FirebaseSync", "FirebaseDatabase is null! Cannot sync group")
@@ -587,6 +601,7 @@ class RealtimeDatabaseDataSource(
     }
 
     fun syncExpense(expense: Expense) {
+        if (networkMonitor?.isCurrentlyOnline() == false) return
         try {
             db?.getReference("groups")?.child(expense.groupId)
                 ?.child("expenses")?.child(expense.id)?.setValue(
@@ -611,6 +626,7 @@ class RealtimeDatabaseDataSource(
     }
 
     fun syncSettlement(settlement: Settlement) {
+        if (networkMonitor?.isCurrentlyOnline() == false) return
         try {
             db?.getReference("groups")?.child(settlement.groupId)
                 ?.child("settlements")?.child(settlement.id)?.setValue(
@@ -633,6 +649,7 @@ class RealtimeDatabaseDataSource(
     }
 
     fun deleteGroup(groupId: String) {
+        if (networkMonitor?.isCurrentlyOnline() == false) return
         try {
             db?.getReference("groups")?.child(groupId)?.removeValue()
         } catch (e: Exception) {
@@ -641,6 +658,7 @@ class RealtimeDatabaseDataSource(
     }
 
     fun deleteExpense(groupId: String, expenseId: String) {
+        if (networkMonitor?.isCurrentlyOnline() == false) return
         try {
             db?.getReference("groups")?.child(groupId)?.child("expenses")?.child(expenseId)?.removeValue()
         } catch (e: Exception) {

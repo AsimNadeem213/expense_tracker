@@ -238,23 +238,6 @@ fun GroupListScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
 
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "${state.groups.size} Active Groups",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                        )
-                    }
-                }
-
                 items(state.groups) { group ->
                     val currentUserId = state.currentUserId
                     val isCreator = when {

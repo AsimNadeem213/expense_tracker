@@ -27,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,11 +48,17 @@ fun ExpenseCard(
     currencySymbol: String = "Rs:",
     onClick: () -> Unit = {}
 ) {
+    val categoryColor = remember(expense.category.colorHex) { parseHexColor(expense.category.colorHex) }
+    val categoryIcon = remember(expense.category.iconName) { getCategoryIcon(expense.category.iconName) }
+    val formattedAmount = remember(expense.amount, currencySymbol) { CurrencyFormatter.format(expense.amount, currencySymbol) }
+    val subtitleText = remember(expense.paidByUserName, expense.date) {
+        "Paid by ${expense.paidByUserName} • ${DateFormatter.formatDate(expense.date)}"
+    }
+    val categoryBgColor = remember(categoryColor) { categoryColor.copy(alpha = 0.15f) }
+
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .clickable { onClick() },
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(18.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
@@ -61,16 +68,15 @@ fun ExpenseCard(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val categoryColor = parseHexColor(expense.category.colorHex)
             Box(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(categoryColor.copy(alpha = 0.15f)),
+                    .background(categoryBgColor),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = getCategoryIcon(expense.category.iconName),
+                    imageVector = categoryIcon,
                     contentDescription = expense.category.name,
                     tint = categoryColor,
                     modifier = Modifier.size(26.dp)
@@ -89,7 +95,7 @@ fun ExpenseCard(
                 }
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "Paid by ${expense.paidByUserName} • ${DateFormatter.formatDate(expense.date)}",
+                    text = subtitleText,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
@@ -97,7 +103,7 @@ fun ExpenseCard(
 
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = CurrencyFormatter.format(expense.amount, currencySymbol),
+                    text = formattedAmount,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.onSurface

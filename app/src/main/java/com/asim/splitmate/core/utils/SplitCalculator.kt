@@ -37,11 +37,13 @@ object SplitCalculator {
             SplitType.EXACT -> {
                 selectedMembers.map { user ->
                     val custom = customSplits.find { it.userId == user.id }
+                    val rawAmt = custom?.amount ?: 0.0
+                    val amt = (rawAmt * 100).roundToInt() / 100.0
                     Split(
                         userId = user.id,
                         userName = user.name,
-                        amount = custom?.amount ?: 0.0,
-                        percentage = if (totalAmount > 0) ((custom?.amount ?: 0.0) / totalAmount) * 100 else 0.0,
+                        amount = amt,
+                        percentage = if (totalAmount > 0) (amt / totalAmount) * 100 else 0.0,
                         shares = 1
                     )
                 }

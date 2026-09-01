@@ -326,10 +326,15 @@ fun GroupDetailScreen(
                     )
                     1 -> BalancesTab(
                         groupId = groupId,
+                        currentUserId = currentUserId,
                         currencySymbol = group.currencySymbol,
                         balancesResult = balancesRes,
+                        settlements = state.groupSettlements,
                         onSettleClick = { debt ->
                             onNavigateToRecordSettlement(groupId, debt.fromUserId, debt.toUserId, debt.amount)
+                        },
+                        onDeleteSettlement = { settlementId ->
+                            viewModel.deleteSettlement(settlementId)
                         }
                     )
                     2 -> GroupStatsScreen(group = group, expenses = state.groupExpenses)
@@ -396,12 +401,16 @@ private fun ExpensesTab(
 @Composable
 private fun BalancesTab(
     groupId: String,
+    currentUserId: String = "usr_you",
     currencySymbol: String,
     balancesResult: GroupBalancesResult?,
-    onSettleClick: (SimplifiedDebt) -> Unit
+    settlements: List<com.asim.splitmate.domain.model.Settlement> = emptyList(),
+    onSettleClick: (SimplifiedDebt) -> Unit,
+    onDeleteSettlement: (String) -> Unit = {}
 ) {
     val debts = balancesResult?.simplifiedDebts ?: emptyList()
     val netBalances = balancesResult?.netBalances ?: emptyList()
+    val dateFormatter = remember { java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault()) }
 
     LazyColumn(
         modifier = Modifier
@@ -445,7 +454,7 @@ private fun BalancesTab(
             items(debts) { debt ->
                 DebtFlowCard(
                     debt = debt,
-                    currentUserId = "usr_you",
+                    currentUserId = currentUserId,
                     currencySymbol = currencySymbol,
                     onSettleClick = onSettleClick
                 )
@@ -504,6 +513,77 @@ private fun BalancesTab(
                         fontWeight = FontWeight.Bold,
                         color = color
                     )
+                }
+            }
+        }
+
+        if (settlements.isNotEmpty()) {
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Recorded Settlement Payments History",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            items(settlements) { set ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(GreenOwed.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Payments,
+                                contentDescription = null,
+                                tint = GreenOwed,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "${set.payerName} paid ${set.recipientName}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "${dateFormatter.format(java.util.Date(set.date))} • ${set.paymentMethod}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                            if (set.notes.isNotBlank()) {
+                                Text(
+                                    text = set.notes,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                )
+                            }
+                        }
+                        Text(
+                            text = CurrencyFormatter.format(set.amount, currencySymbol),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = GreenOwed
+                        )
+                        IconButton(onClick = { onDeleteSettlement(set.id) }) {
+                            Icon(
+                                imageVector = Icons.Filled.Delete,
+                                contentDescription = "Delete settlement",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
                 }
             }
         }

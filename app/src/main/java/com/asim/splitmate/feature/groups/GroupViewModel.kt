@@ -25,6 +25,7 @@ data class GroupUiState(
     val groups: List<Group> = emptyList(),
     val currentGroup: Group? = null,
     val groupExpenses: List<Expense> = emptyList(),
+    val groupSettlements: List<com.asim.splitmate.domain.model.Settlement> = emptyList(),
     val balancesResult: GroupBalancesResult? = null,
     val isLoading: Boolean = false,
     val error: String? = null,
@@ -82,12 +83,24 @@ class GroupViewModel(
         }
 
         viewModelScope.launch {
+            settlementRepository.getSettlementsForGroup(groupId).collect { settlements ->
+                _uiState.value = _uiState.value.copy(groupSettlements = settlements)
+            }
+        }
+
+        viewModelScope.launch {
             val user = userDao.getCurrentUserSync()
             val userId = user?.id ?: "usr_you"
 
             calculateGroupBalancesUseCase.execute(groupId, userId).collect { res ->
                 _uiState.value = _uiState.value.copy(balancesResult = res)
             }
+        }
+    }
+
+    fun deleteSettlement(settlementId: String) {
+        viewModelScope.launch {
+            settlementRepository.deleteSettlement(settlementId)
         }
     }
 

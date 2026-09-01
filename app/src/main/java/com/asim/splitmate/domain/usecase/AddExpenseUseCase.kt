@@ -43,6 +43,18 @@ class AddExpenseUseCase(
             customSplits = customSplits
         )
 
+        if (splitType == SplitType.EXACT) {
+            val totalAllocated = computedSplits.sumOf { it.amount }
+            if (kotlin.math.abs(totalAllocated - amount) > 0.01) {
+                return Resource.Error("The sum of split amounts (${String.format("%.2f", totalAllocated)}) must equal total amount (${String.format("%.2f", amount)})")
+            }
+        } else if (splitType == SplitType.PERCENTAGE) {
+            val totalPct = computedSplits.sumOf { it.percentage }
+            if (kotlin.math.abs(totalPct - 100.0) > 0.1) {
+                return Resource.Error("The sum of split percentages (${String.format("%.1f", totalPct)}%) must equal 100%")
+            }
+        }
+
         val isEditMode = !existingExpenseId.isNullOrBlank()
         val expId = existingExpenseId?.takeIf { it.isNotBlank() }
             ?: ("exp_" + UUID.randomUUID().toString().take(8))

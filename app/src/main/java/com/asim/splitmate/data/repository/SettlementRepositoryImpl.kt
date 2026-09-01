@@ -39,7 +39,11 @@ class SettlementRepositoryImpl(
 
     override suspend fun deleteSettlement(settlementId: String): Resource<Unit> {
         return try {
+            val settlement = settlementDao.getSettlementById(settlementId)
             settlementDao.deleteSettlement(settlementId)
+            if (settlement != null) {
+                realtimeDatabaseDataSource.deleteSettlement(settlement.groupId, settlementId)
+            }
             Resource.Success(Unit)
         } catch (e: Exception) {
             Resource.Error(e.message ?: "Failed to delete settlement", e)

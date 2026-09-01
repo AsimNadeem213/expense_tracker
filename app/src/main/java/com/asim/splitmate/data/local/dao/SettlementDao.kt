@@ -18,9 +18,15 @@ interface SettlementDao {
     @Query("SELECT * FROM settlements ORDER BY date DESC LIMIT :limit")
     fun getRecentSettlements(limit: Int = 10): Flow<List<SettlementEntity>>
 
+    @Query("SELECT * FROM settlements WHERE id = :settlementId")
+    suspend fun getSettlementById(settlementId: String): SettlementEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSettlement(settlement: SettlementEntity)
 
     @Query("DELETE FROM settlements WHERE id = :settlementId")
     suspend fun deleteSettlement(settlementId: String)
+
+    @Query("DELETE FROM settlements WHERE groupId = :groupId")
+    suspend fun deleteSettlementsForGroup(groupId: String)
 }

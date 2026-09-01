@@ -45,8 +45,8 @@ fun DebtFlowCard(
     currencySymbol: String = "₹",
     onSettleClick: (SimplifiedDebt) -> Unit = {}
 ) {
-    val isUserDebtor = debt.fromUserId == currentUserId
-    val isUserCreditor = debt.toUserId == currentUserId
+    val isUserDebtor = debt.fromUserId == currentUserId || debt.fromUserId == "usr_you" || debt.fromUserName.equals("You", ignoreCase = true)
+    val isUserCreditor = debt.toUserId == currentUserId || debt.toUserId == "usr_you" || debt.toUserName.equals("You", ignoreCase = true)
 
     val containerColor = when {
         isUserDebtor -> CoralOweContainer.copy(alpha = 0.6f)

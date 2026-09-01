@@ -438,10 +438,9 @@ fun AddEditExpenseScreen(
                                         modifier = Modifier.weight(1f)
                                     )
                                     OutlinedTextField(
-                                        value = if (currentAmt > 0) currentAmt.toString() else "",
+                                        value = state.customSplitInputs[member.id] ?: (if (currentAmt > 0) currentAmt.toString() else ""),
                                         onValueChange = { input ->
-                                            val newVal = input.toDoubleOrNull() ?: 0.0
-                                            viewModel.updateCustomSplitAmount(member.id, member.name, newVal)
+                                            viewModel.updateCustomSplitAmountInput(member.id, member.name, input)
                                         },
                                         placeholder = { Text("0.00") },
                                         prefix = { Text(currencySymbol) },
@@ -494,10 +493,9 @@ fun AddEditExpenseScreen(
                                         )
                                     }
                                     OutlinedTextField(
-                                        value = if (currentPct > 0) currentPct.toString() else "",
+                                        value = state.customSplitInputs[member.id] ?: (if (currentPct > 0) currentPct.toString() else ""),
                                         onValueChange = { input ->
-                                            val newVal = input.toDoubleOrNull() ?: 0.0
-                                            viewModel.updateCustomSplitPercentage(member.id, member.name, newVal)
+                                            viewModel.updateCustomSplitPercentageInput(member.id, member.name, input)
                                         },
                                         placeholder = { Text("0") },
                                         suffix = { Text("%") },
@@ -552,10 +550,9 @@ fun AddEditExpenseScreen(
                                         )
                                     }
                                     OutlinedTextField(
-                                        value = currentShare.toString(),
+                                        value = state.customSplitInputs[member.id] ?: currentShare.toString(),
                                         onValueChange = { input ->
-                                            val newVal = input.toIntOrNull() ?: 1
-                                            viewModel.updateCustomSplitShares(member.id, member.name, newVal)
+                                            viewModel.updateCustomSplitSharesInput(member.id, member.name, input)
                                         },
                                         placeholder = { Text("1") },
                                         suffix = { Text("share(s)") },

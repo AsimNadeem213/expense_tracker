@@ -93,6 +93,14 @@ class SettlementViewModel(
         }
     }
 
+    fun setPayer(user: User) {
+        _uiState.value = _uiState.value.copy(payer = user)
+    }
+
+    fun setRecipient(user: User) {
+        _uiState.value = _uiState.value.copy(recipient = user)
+    }
+
     fun resetState() {
         _uiState.value = _uiState.value.copy(isSavedSuccess = false, error = null)
     }

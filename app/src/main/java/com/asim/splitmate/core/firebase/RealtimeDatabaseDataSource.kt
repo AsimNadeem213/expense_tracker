@@ -89,6 +89,7 @@ class RealtimeDatabaseDataSource(
 
             val remoteGroupIdsForUser = mutableSetOf<String>()
             val remoteExpenseIdsByGroup = mutableMapOf<String, MutableSet<String>>()
+            val remoteSettlementIdsByGroup = mutableMapOf<String, MutableSet<String>>()
 
             for (groupSnap in snapshot.children) {
                 val groupId = groupSnap.child("id").getValue(String::class.java) ?: groupSnap.key ?: continue
@@ -272,23 +273,55 @@ class RealtimeDatabaseDataSource(
                         )
                     }
 
-                    val splitAmount = if (membersList.isNotEmpty()) amount / membersList.size else amount
-                    val splitEntities = membersList.map { m ->
-                        ExpenseSplitEntity(
-                            expenseId = expId,
-                            userId = m.id,
-                            userName = m.name,
-                            amount = splitAmount
-                        )
+                    val splitsSnap = expSnap.child("splits")
+                    val remoteSplits = mutableListOf<ExpenseSplitEntity>()
+                    if (splitsSnap.children.count() > 0) {
+                        for (sSnap in splitsSnap.children) {
+                            val sUserId = sSnap.child("userId").getValue(String::class.java)
+                                ?: sSnap.child("id").getValue(String::class.java) ?: continue
+                            val sUserName = sSnap.child("userName").getValue(String::class.java)
+                                ?: sSnap.child("name").getValue(String::class.java) ?: "Member"
+                            val sAmount = sSnap.child("amount").getValue(Double::class.java) ?: 0.0
+                            val sPercentage = sSnap.child("percentage").getValue(Double::class.java) ?: 0.0
+                            val sShares = sSnap.child("shares").getValue(Int::class.java) ?: 1
+                            remoteSplits.add(
+                                ExpenseSplitEntity(
+                                    expenseId = expId,
+                                    userId = sUserId,
+                                    userName = sUserName,
+                                    amount = sAmount,
+                                    percentage = sPercentage,
+                                    shares = sShares
+                                )
+                            )
+                        }
                     }
-                    expenseDao.insertSplits(splitEntities)
+
+                    if (remoteSplits.isNotEmpty()) {
+                        expenseDao.deleteSplitsForExpense(expId)
+                        expenseDao.insertSplits(remoteSplits)
+                    } else {
+                        val existingSplits = expenseDao.getSplitsForExpense(expId)
+                        if (existingSplits.isEmpty()) {
+                            val domainMembers = membersList.map { it.toDomain() }
+                            val computedSplits = com.asim.splitmate.core.utils.SplitCalculator.calculateSplits(
+                                totalAmount = amount,
+                                splitType = splitType,
+                                selectedMembers = domainMembers
+                            )
+                            val fallbackEntities = computedSplits.map { ExpenseSplitEntity.fromDomain(expId, it) }
+                            expenseDao.insertSplits(fallbackEntities)
+                        }
+                    }
                 }
                 remoteExpenseIdsByGroup[groupId] = remoteExpensesForThisGroup
 
                 // Fetch Settlements under this group
+                val remoteSettlementsForThisGroup = mutableSetOf<String>()
                 val settlementsSnap = groupSnap.child("settlements")
                 for (setSnap in settlementsSnap.children) {
                     val setId = setSnap.child("id").getValue(String::class.java) ?: setSnap.key ?: continue
+                    remoteSettlementsForThisGroup.add(setId)
                     val payerId = setSnap.child("payerId").getValue(String::class.java) ?: ""
                     val payerName = setSnap.child("payerName").getValue(String::class.java) ?: ""
                     val recipientId = setSnap.child("recipientId").getValue(String::class.java) ?: ""
@@ -312,10 +345,11 @@ class RealtimeDatabaseDataSource(
                     )
                     settlementDao.insertSettlement(settlementEntity)
                 }
+                remoteSettlementIdsByGroup[groupId] = remoteSettlementsForThisGroup
             }
 
             // -------------------------------------------------------------
-            // PURGE DELETED GROUPS & DELETED EXPENSES FROM LOCAL ROOM DB
+            // PURGE DELETED GROUPS, EXPENSES & SETTLEMENTS FROM LOCAL ROOM DB
             // -------------------------------------------------------------
             val localGroups = groupDao.getAllGroupsSync()
             for (localGroup in localGroups) {
@@ -323,10 +357,11 @@ class RealtimeDatabaseDataSource(
                     // Group deleted on Firebase! Purge locally!
                     groupDao.deleteGroupMembersForGroup(localGroup.id)
                     expenseDao.deleteExpensesForGroup(localGroup.id)
+                    settlementDao.deleteSettlementsForGroup(localGroup.id)
                     groupDao.deleteGroup(localGroup.id)
                     Log.d("FirebaseSync", "Purged remotely deleted group from Room DB: ${localGroup.id}")
                 } else {
-                    // Group still exists. Purge deleted expenses for this group!
+                    // Group still exists. Purge deleted expenses & settlements for this group!
                     val remoteExpenseIds = remoteExpenseIdsByGroup[localGroup.id] ?: emptySet()
                     val localExpenses = expenseDao.getExpensesForGroupSync(localGroup.id)
                     for (localExp in localExpenses) {
@@ -334,6 +369,15 @@ class RealtimeDatabaseDataSource(
                             expenseDao.deleteSplitsForExpense(localExp.id)
                             expenseDao.deleteExpense(localExp.id)
                             Log.d("FirebaseSync", "Purged remotely deleted expense from Room DB: ${localExp.id}")
+                        }
+                    }
+
+                    val remoteSettlementIds = remoteSettlementIdsByGroup[localGroup.id] ?: emptySet()
+                    val localSettlements = settlementDao.getSettlementsForGroupSync(localGroup.id)
+                    for (localSet in localSettlements) {
+                        if (!remoteSettlementIds.contains(localSet.id)) {
+                            settlementDao.deleteSettlement(localSet.id)
+                            Log.d("FirebaseSync", "Purged remotely deleted settlement from Room DB: ${localSet.id}")
                         }
                     }
                 }
@@ -603,6 +647,15 @@ class RealtimeDatabaseDataSource(
     fun syncExpense(expense: Expense) {
         if (networkMonitor?.isCurrentlyOnline() == false) return
         try {
+            val splitsList = expense.splits.map { split ->
+                mapOf(
+                    "userId" to split.userId,
+                    "userName" to split.userName,
+                    "amount" to split.amount,
+                    "percentage" to split.percentage,
+                    "shares" to split.shares
+                )
+            }
             db?.getReference("groups")?.child(expense.groupId)
                 ?.child("expenses")?.child(expense.id)?.setValue(
                     mapOf(
@@ -617,7 +670,8 @@ class RealtimeDatabaseDataSource(
                         "splitType" to expense.splitType.name,
                         "notes" to expense.notes,
                         "createdBy" to expense.createdBy,
-                        "isEdited" to expense.isEdited
+                        "isEdited" to expense.isEdited,
+                        "splits" to splitsList
                     )
                 )
         } catch (e: Exception) {
@@ -661,6 +715,15 @@ class RealtimeDatabaseDataSource(
         if (networkMonitor?.isCurrentlyOnline() == false) return
         try {
             db?.getReference("groups")?.child(groupId)?.child("expenses")?.child(expenseId)?.removeValue()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun deleteSettlement(groupId: String, settlementId: String) {
+        if (networkMonitor?.isCurrentlyOnline() == false) return
+        try {
+            db?.getReference("groups")?.child(groupId)?.child("settlements")?.child(settlementId)?.removeValue()
         } catch (e: Exception) {
             e.printStackTrace()
         }

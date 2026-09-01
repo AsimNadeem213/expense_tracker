@@ -28,9 +28,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MenuAnchorType
 import com.asim.splitmate.core.ui.components.ExpenseMateTopBar
 import com.asim.splitmate.core.ui.components.PrimaryButton
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RecordSettlementScreen(
     groupId: String,
@@ -50,6 +56,8 @@ fun RecordSettlementScreen(
     }
     var selectedPaymentMethod by remember { mutableStateOf("UPI / Online") }
     var notes by remember { mutableStateOf("") }
+    var payerExpanded by remember { mutableStateOf(false) }
+    var recipientExpanded by remember { mutableStateOf(false) }
 
     val currencySymbol = state.currentGroup?.currencySymbol ?: "₹"
     val context = LocalContext.current
@@ -88,10 +96,76 @@ fun RecordSettlementScreen(
                 }
 
                 Text(
-                    text = "${state.payer?.name ?: "Payer"} pays ${state.recipient?.name ?: "Recipient"}",
-                    style = MaterialTheme.typography.titleLarge,
+                    text = "Payer (Who Paid) *",
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
+                Spacer(modifier = Modifier.height(4.dp))
+                ExposedDropdownMenuBox(
+                    expanded = payerExpanded,
+                    onExpandedChange = { payerExpanded = !payerExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = state.payer?.name ?: "Select Payer",
+                        onValueChange = {},
+                        readOnly = true,
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = payerExpanded) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                    )
+                    ExposedDropdownMenu(
+                        expanded = payerExpanded,
+                        onDismissRequest = { payerExpanded = false }
+                    ) {
+                        state.currentGroup?.members?.forEach { member ->
+                            DropdownMenuItem(
+                                text = { Text(member.name) },
+                                onClick = {
+                                    viewModel.setPayer(member)
+                                    payerExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "Recipient (Who Received) *",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                ExposedDropdownMenuBox(
+                    expanded = recipientExpanded,
+                    onExpandedChange = { recipientExpanded = !recipientExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = state.recipient?.name ?: "Select Recipient",
+                        onValueChange = {},
+                        readOnly = true,
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = recipientExpanded) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                    )
+                    ExposedDropdownMenu(
+                        expanded = recipientExpanded,
+                        onDismissRequest = { recipientExpanded = false }
+                    ) {
+                        state.currentGroup?.members?.forEach { member ->
+                            DropdownMenuItem(
+                                text = { Text(member.name) },
+                                onClick = {
+                                    viewModel.setRecipient(member)
+                                    recipientExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 

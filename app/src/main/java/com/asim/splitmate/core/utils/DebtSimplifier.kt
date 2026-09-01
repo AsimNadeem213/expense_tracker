@@ -16,19 +16,58 @@ object DebtSimplifier {
      * Net balance > 0 => Person is OWED money.
      * Net balance < 0 => Person OWES money.
      */
+    private fun resolveUserId(id: String, name: String, members: List<User>): String {
+        if (members.any { it.id == id }) return id
+        val matched = members.find {
+            it.id.equals(id, ignoreCase = true) ||
+            (it.name.isNotBlank() && it.name.equals(name, ignoreCase = true)) ||
+            (it.isCurrentUser && (id == "usr_you" || id == "You" || name.equals("You", ignoreCase = true)))
+        }
+        return matched?.id ?: id
+    }
+
     fun calculateNetBalances(
         members: List<User>,
         expenses: List<Expense>,
         settlements: List<Settlement>
     ): List<NetBalance> {
         val balanceMap = mutableMapOf<String, Double>()
-        val memberMap = members.associateBy { it.id }
+        val memberMap = members.associateBy { it.id }.toMutableMap()
 
         members.forEach { balanceMap[it.id] = 0.0 }
 
+        // Augment memberMap from expenses & settlements if any member is missing
+        for (expense in expenses) {
+            val pId = resolveUserId(expense.paidByUserId, expense.paidByUserName, members)
+            if (!memberMap.containsKey(pId)) {
+                memberMap[pId] = User(id = pId, name = expense.paidByUserName.ifBlank { "Member" }, email = "")
+                balanceMap[pId] = 0.0
+            }
+            for (split in expense.splits) {
+                val sId = resolveUserId(split.userId, split.userName, members)
+                if (!memberMap.containsKey(sId)) {
+                    memberMap[sId] = User(id = sId, name = split.userName.ifBlank { "Member" }, email = "")
+                    balanceMap[sId] = 0.0
+                }
+            }
+        }
+
+        for (settlement in settlements) {
+            val pId = resolveUserId(settlement.payerId, settlement.payerName, members)
+            if (!memberMap.containsKey(pId)) {
+                memberMap[pId] = User(id = pId, name = settlement.payerName.ifBlank { "Member" }, email = "")
+                balanceMap[pId] = 0.0
+            }
+            val rId = resolveUserId(settlement.recipientId, settlement.recipientName, members)
+            if (!memberMap.containsKey(rId)) {
+                memberMap[rId] = User(id = rId, name = settlement.recipientName.ifBlank { "Member" }, email = "")
+                balanceMap[rId] = 0.0
+            }
+        }
+
         // Process Expenses
         for (expense in expenses) {
-            val payerId = expense.paidByUserId
+            val payerId = resolveUserId(expense.paidByUserId, expense.paidByUserName, members)
             balanceMap[payerId] = (balanceMap[payerId] ?: 0.0) + expense.amount
 
             val effectiveSplits = if (expense.splits.isNotEmpty()) {
@@ -50,14 +89,15 @@ object DebtSimplifier {
             }
 
             for (split in effectiveSplits) {
-                balanceMap[split.userId] = (balanceMap[split.userId] ?: 0.0) - split.amount
+                val targetId = resolveUserId(split.userId, split.userName, members)
+                balanceMap[targetId] = (balanceMap[targetId] ?: 0.0) - split.amount
             }
         }
 
         // Process Settlements (payer pays recipient)
         for (settlement in settlements) {
-            val payerId = settlement.payerId
-            val recipientId = settlement.recipientId
+            val payerId = resolveUserId(settlement.payerId, settlement.payerName, members)
+            val recipientId = resolveUserId(settlement.recipientId, settlement.recipientName, members)
             balanceMap[payerId] = (balanceMap[payerId] ?: 0.0) + settlement.amount
             balanceMap[recipientId] = (balanceMap[recipientId] ?: 0.0) - settlement.amount
         }

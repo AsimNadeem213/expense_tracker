@@ -26,6 +26,7 @@ data class ExpenseUiState(
     val selectedMembers: List<User> = emptyList(),
     val splitType: SplitType = SplitType.EQUAL,
     val customSplits: List<Split> = emptyList(),
+    val customSplitInputs: Map<String, String> = emptyMap(),
     val currentExpense: Expense? = null,
     val selectedDate: Long = System.currentTimeMillis(),
     val isLoading: Boolean = false,
@@ -99,6 +100,16 @@ class ExpenseViewModel(
                 val splitUserIds = exp.splits.map { it.userId }.toSet()
                 val participants = members.filter { splitUserIds.contains(it.id) }.ifEmpty { members }
 
+                val inputMap = exp.splits.associate { split ->
+                    val text = when (exp.splitType) {
+                        SplitType.EXACT -> if (split.amount == 0.0) "0" else if (split.amount % 1.0 == 0.0) split.amount.toLong().toString() else split.amount.toString()
+                        SplitType.PERCENTAGE -> if (split.percentage == 0.0) "0" else if (split.percentage % 1.0 == 0.0) split.percentage.toLong().toString() else split.percentage.toString()
+                        SplitType.SHARES -> split.shares.toString()
+                        SplitType.EQUAL -> ""
+                    }
+                    split.userId to text
+                }
+
                 _uiState.value = _uiState.value.copy(
                     currentExpense = exp,
                     currentGroup = group,
@@ -106,6 +117,7 @@ class ExpenseViewModel(
                     selectedMembers = participants,
                     splitType = exp.splitType,
                     customSplits = exp.splits,
+                    customSplitInputs = inputMap,
                     selectedDate = exp.date,
                     currentUserId = user.id
                 )
@@ -217,6 +229,60 @@ class ExpenseViewModel(
             currentList.add(user)
         }
         _uiState.value = _uiState.value.copy(selectedMembers = currentList)
+    }
+
+    fun updateCustomSplitAmountInput(userId: String, userName: String, input: String) {
+        val newInputs = _uiState.value.customSplitInputs.toMutableMap()
+        newInputs[userId] = input
+
+        val parsedAmount = input.toDoubleOrNull() ?: 0.0
+        val currentSplits = _uiState.value.customSplits.toMutableList()
+        val index = currentSplits.indexOfFirst { it.userId == userId }
+        if (index >= 0) {
+            currentSplits[index] = currentSplits[index].copy(amount = parsedAmount)
+        } else {
+            currentSplits.add(Split(userId = userId, userName = userName, amount = parsedAmount))
+        }
+        _uiState.value = _uiState.value.copy(
+            customSplitInputs = newInputs,
+            customSplits = currentSplits
+        )
+    }
+
+    fun updateCustomSplitPercentageInput(userId: String, userName: String, input: String) {
+        val newInputs = _uiState.value.customSplitInputs.toMutableMap()
+        newInputs[userId] = input
+
+        val parsedPct = input.toDoubleOrNull() ?: 0.0
+        val currentSplits = _uiState.value.customSplits.toMutableList()
+        val index = currentSplits.indexOfFirst { it.userId == userId }
+        if (index >= 0) {
+            currentSplits[index] = currentSplits[index].copy(percentage = parsedPct)
+        } else {
+            currentSplits.add(Split(userId = userId, userName = userName, percentage = parsedPct))
+        }
+        _uiState.value = _uiState.value.copy(
+            customSplitInputs = newInputs,
+            customSplits = currentSplits
+        )
+    }
+
+    fun updateCustomSplitSharesInput(userId: String, userName: String, input: String) {
+        val newInputs = _uiState.value.customSplitInputs.toMutableMap()
+        newInputs[userId] = input
+
+        val parsedShares = input.toIntOrNull() ?: 1
+        val currentSplits = _uiState.value.customSplits.toMutableList()
+        val index = currentSplits.indexOfFirst { it.userId == userId }
+        if (index >= 0) {
+            currentSplits[index] = currentSplits[index].copy(shares = parsedShares)
+        } else {
+            currentSplits.add(Split(userId = userId, userName = userName, shares = parsedShares))
+        }
+        _uiState.value = _uiState.value.copy(
+            customSplitInputs = newInputs,
+            customSplits = currentSplits
+        )
     }
 
     fun updateCustomSplitAmount(userId: String, userName: String, amount: Double) {

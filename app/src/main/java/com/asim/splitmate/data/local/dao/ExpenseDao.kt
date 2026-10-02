@@ -28,6 +28,12 @@ interface ExpenseDao {
     @Query("SELECT * FROM expenses WHERE id = :expenseId LIMIT 1")
     suspend fun getExpenseById(expenseId: String): ExpenseEntity?
 
+    @Query("UPDATE expenses SET isSynced = 1 WHERE id = :expenseId")
+    suspend fun markExpenseSynced(expenseId: String)
+
+    @Query("SELECT * FROM expenses WHERE isSynced = 0")
+    suspend fun getUnsyncedExpenses(): List<ExpenseEntity>
+
     @Query("SELECT * FROM expense_splits WHERE expenseId = :expenseId")
     suspend fun getSplitsForExpense(expenseId: String): List<ExpenseSplitEntity>
 

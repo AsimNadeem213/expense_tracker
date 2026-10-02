@@ -50,13 +50,16 @@ class ExpenseRepositoryImpl(
 
     override suspend fun addExpense(expense: Expense): Resource<Expense> {
         return try {
-            val entity = ExpenseEntity.fromDomain(expense)
+            val entity = ExpenseEntity.fromDomain(expense, isSynced = false)
             val splitEntities = expense.splits.map { ExpenseSplitEntity.fromDomain(expense.id, it) }
 
             expenseDao.insertSplits(splitEntities)
             expenseDao.insertExpense(entity)
 
-            realtimeDatabaseDataSource.syncExpense(expense)
+            val synced = realtimeDatabaseDataSource.syncExpense(expense)
+            if (synced) {
+                expenseDao.markExpenseSynced(expense.id)
+            }
             Resource.Success(expense)
         } catch (e: Exception) {
             Resource.Error(e.message ?: "Failed to add expense", e)
@@ -66,13 +69,16 @@ class ExpenseRepositoryImpl(
     override suspend fun updateExpense(expense: Expense): Resource<Expense> {
         return try {
             expenseDao.deleteSplitsForExpense(expense.id)
-            val entity = ExpenseEntity.fromDomain(expense)
+            val entity = ExpenseEntity.fromDomain(expense, isSynced = false)
             val splitEntities = expense.splits.map { ExpenseSplitEntity.fromDomain(expense.id, it) }
 
             expenseDao.insertSplits(splitEntities)
             expenseDao.insertExpense(entity)
 
-            realtimeDatabaseDataSource.syncExpense(expense)
+            val synced = realtimeDatabaseDataSource.syncExpense(expense)
+            if (synced) {
+                expenseDao.markExpenseSynced(expense.id)
+            }
             Resource.Success(expense)
         } catch (e: Exception) {
             Resource.Error(e.message ?: "Failed to update expense", e)
@@ -82,10 +88,11 @@ class ExpenseRepositoryImpl(
     override suspend fun deleteExpense(expenseId: String): Resource<Unit> {
         return try {
             val expense = expenseDao.getExpenseById(expenseId)
+            val groupId = expense?.groupId ?: ""
             expenseDao.deleteSplitsForExpense(expenseId)
             expenseDao.deleteExpense(expenseId)
-            if (expense != null) {
-                realtimeDatabaseDataSource.deleteExpense(expense.groupId, expenseId)
+            if (groupId.isNotBlank()) {
+                realtimeDatabaseDataSource.deleteExpense(groupId, expenseId)
             }
             Resource.Success(Unit)
         } catch (e: Exception) {

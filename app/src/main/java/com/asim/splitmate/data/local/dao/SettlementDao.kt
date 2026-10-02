@@ -21,6 +21,12 @@ interface SettlementDao {
     @Query("SELECT * FROM settlements WHERE id = :settlementId")
     suspend fun getSettlementById(settlementId: String): SettlementEntity?
 
+    @Query("UPDATE settlements SET isSynced = 1 WHERE id = :settlementId")
+    suspend fun markSettlementSynced(settlementId: String)
+
+    @Query("SELECT * FROM settlements WHERE isSynced = 0")
+    suspend fun getUnsyncedSettlements(): List<SettlementEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSettlement(settlement: SettlementEntity)
 

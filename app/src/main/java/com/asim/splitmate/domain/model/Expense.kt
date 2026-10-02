@@ -1,5 +1,8 @@
 package com.asim.splitmate.domain.model
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class Expense(
     val id: String,
     val groupId: String,

@@ -1,7 +1,9 @@
 package com.asim.splitmate.core.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,7 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BeachAccess
 import androidx.compose.material.icons.filled.Delete
@@ -37,15 +39,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.asim.splitmate.core.ui.theme.EmeraldPrimary
 import com.asim.splitmate.core.utils.CurrencyFormatter
 import com.asim.splitmate.domain.model.Group
 import com.asim.splitmate.domain.model.GroupType
-
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Surface
 
 @Composable
 fun GroupCard(
@@ -56,129 +54,192 @@ fun GroupCard(
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
 
+    val (icon, typeLabel) = remember(group.type) {
+        when (group.type) {
+            GroupType.TRIP -> Icons.Filled.BeachAccess to "Trip"
+            GroupType.HOME -> Icons.Filled.HomeWork to "Home"
+            GroupType.COUPLE -> Icons.Filled.Favorite to "Couple"
+            GroupType.OTHER -> Icons.Filled.Group to "Other"
+        }
+    }
+
+    val membersText = remember(group.members.size) { "${group.members.size} members" }
+    val formattedSpent = remember(group.totalExpense, group.currencySymbol) {
+        CurrencyFormatter.format(group.totalExpense, group.currencySymbol)
+    }
+    val badgeBgColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 0.dp
+        )
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = 16.dp,
+                    vertical = 14.dp
+                ),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val (icon, typeLabel) = when (group.type) {
-                GroupType.TRIP -> Icons.Filled.BeachAccess to "Trip"
-                GroupType.HOME -> Icons.Filled.HomeWork to "Home"
-                GroupType.COUPLE -> Icons.Filled.Favorite to "Couple"
-                GroupType.OTHER -> Icons.Filled.Group to "Other"
-            }
 
+            // Group Icon
             Box(
                 modifier = Modifier
-                    .size(52.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(EmeraldPrimary.copy(alpha = 0.12f)),
+                    .size(50.dp)
+                    .clip(RoundedCornerShape(15.dp))
+                    .background(badgeBgColor),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
-                    contentDescription = group.name,
-                    tint = EmeraldPrimary,
-                    modifier = Modifier.size(28.dp)
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(25.dp)
                 )
             }
 
             Spacer(modifier = Modifier.width(14.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+            // Group Information
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = group.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
-                        text = group.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        text = membersText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Surface(
-                        color = EmeraldPrimary.copy(alpha = 0.1f),
-                        shape = RoundedCornerShape(6.dp)
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(badgeBgColor)
+                            .padding(
+                                horizontal = 6.dp,
+                                vertical = 2.dp
+                            )
                     ) {
                         Text(
                             text = typeLabel,
                             style = MaterialTheme.typography.labelSmall,
-                            color = EmeraldPrimary,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "${group.members.size} members",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
             }
 
-            Column(horizontalAlignment = Alignment.End) {
+            Spacer(modifier = Modifier.width(10.dp))
+
+            // Total Spent
+            Column(
+                horizontalAlignment = Alignment.End
+            ) {
                 Text(
                     text = "Total Spent",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
                 Spacer(modifier = Modifier.height(2.dp))
+
                 Text(
-                    text = CurrencyFormatter.format(group.totalExpense, group.currencySymbol),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = EmeraldPrimary
+                    text = formattedSpent,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1
                 )
             }
 
+            // More menu
             if (onEditClick != null || onDeleteClick != null) {
-                Spacer(modifier = Modifier.width(4.dp))
+
                 Box {
                     IconButton(
-                        onClick = { menuExpanded = true },
-                        modifier = Modifier.size(32.dp)
+                        onClick = {
+                            menuExpanded = true
+                        },
+                        modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
-                            Icons.Filled.MoreVert,
-                            contentDescription = "Group Options",
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            imageVector = Icons.Filled.MoreVert,
+                            contentDescription = "Group options",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
                     DropdownMenu(
                         expanded = menuExpanded,
-                        onDismissRequest = { menuExpanded = false }
+                        onDismissRequest = {
+                            menuExpanded = false
+                        }
                     ) {
-                        if (onEditClick != null) {
+
+                        onEditClick?.let {
                             DropdownMenuItem(
-                                text = { Text("Edit Group") },
-                                leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                                text = {
+                                    Text("Edit Group")
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Filled.Edit,
+                                        contentDescription = null
+                                    )
+                                },
                                 onClick = {
                                     menuExpanded = false
-                                    onEditClick()
+                                    it()
                                 }
                             )
                         }
-                        if (onDeleteClick != null) {
+
+                        onDeleteClick?.let {
                             DropdownMenuItem(
-                                text = { Text("Delete Group", color = MaterialTheme.colorScheme.error) },
+                                text = {
+                                    Text(
+                                        text = "Delete Group",
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                },
                                 leadingIcon = {
                                     Icon(
-                                        Icons.Filled.Delete,
+                                        imageVector = Icons.Filled.Delete,
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.error
                                     )
                                 },
                                 onClick = {
                                     menuExpanded = false
-                                    onDeleteClick()
+                                    it()
                                 }
                             )
                         }

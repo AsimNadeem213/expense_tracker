@@ -180,7 +180,8 @@ class ExpenseViewModel(
                     customSplits = _uiState.value.customSplits,
                     notes = notes,
                     date = dateMillis,
-                    existingExpenseId = _uiState.value.currentExpense?.id
+                    existingExpenseId = _uiState.value.currentExpense?.id,
+                    createdByUserId = _uiState.value.currentUserId
                 )) {
                     is Resource.Success -> {
                         _uiState.value = _uiState.value.copy(isLoading = false, isSavedSuccess = true)
@@ -198,6 +199,18 @@ class ExpenseViewModel(
 
     fun deleteExpense(expenseId: String) {
         viewModelScope.launch {
+            val user = userDao.getCurrentUserSync()?.toDomain() ?: User("usr_you", "Asim", "asim@splitmate.app", isCurrentUser = true)
+            val currentUid = _uiState.value.currentUserId.ifBlank { user.id }
+            val existing = expenseRepository.getExpenseById(expenseId)
+            if (existing != null && existing.createdBy.isNotBlank()) {
+                val isCreator = (currentUid.isNotBlank() && existing.createdBy == currentUid) ||
+                        (currentUid.isBlank() && existing.createdBy == "usr_you")
+                if (!isCreator) {
+                    _uiState.value = _uiState.value.copy(isLoading = false, error = "Only the member who added this expense can delete it")
+                    return@launch
+                }
+            }
+
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             when (val res = expenseRepository.deleteExpense(expenseId)) {
                 is Resource.Success -> {

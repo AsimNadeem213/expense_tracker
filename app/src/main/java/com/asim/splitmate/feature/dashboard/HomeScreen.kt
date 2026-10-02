@@ -117,7 +117,7 @@ fun HomeScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { onNavigateToAddExpense(null) },
-                containerColor = EmeraldPrimary,
+                containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
                 Icon(Icons.Filled.Add, contentDescription = "Add Expense")
@@ -205,21 +205,35 @@ private fun HomeScreenContent(
                     )
                 }
             } else {
-                items(summary?.groups ?: emptyList(), key = { it.id }) { group ->
+                items(
+                    items = summary?.groups ?: emptyList(),
+                    key = { it.id },
+                    contentType = { "group" }
+                ) { group ->
                     val currentUserId = state.currentUserId
-                    val isCreator = when {
-                        group.createdBy.isBlank() -> false
-                        currentUserId.isNotBlank() && group.createdBy == currentUserId -> true
-                        else -> {
-                            val currentMember = group.members.find { it.isCurrentUser || (currentUserId.isNotBlank() && it.id == currentUserId) }
-                            currentMember != null && currentMember.id == group.createdBy
+                    val isCreator = remember(group.createdBy, group.members, currentUserId) {
+                        when {
+                            group.createdBy.isBlank() -> false
+                            currentUserId.isNotBlank() && group.createdBy == currentUserId -> true
+                            else -> {
+                                val currentMember = group.members.find { it.isCurrentUser || (currentUserId.isNotBlank() && it.id == currentUserId) }
+                                currentMember != null && currentMember.id == group.createdBy
+                            }
                         }
                     }
+                    val onGroupClick = remember(group.id, onNavigateToGroup) { { onNavigateToGroup(group.id) } }
+                    val onEditGroupClick = remember(group.id, isCreator, onNavigateToEditGroup) {
+                        if (isCreator) { { onNavigateToEditGroup(group.id) } } else null
+                    }
+                    val onDeleteClick = remember(group, isCreator, onDeleteGroupClick) {
+                        if (isCreator) { { onDeleteGroupClick(group) } } else null
+                    }
+
                     GroupCard(
                         group = group,
-                        onClick = { onNavigateToGroup(group.id) },
-                        onEditClick = if (isCreator) { { onNavigateToEditGroup(group.id) } } else null,
-                        onDeleteClick = if (isCreator) { { onDeleteGroupClick(group) } } else null
+                        onClick = onGroupClick,
+                        onEditClick = onEditGroupClick,
+                        onDeleteClick = onDeleteClick
                     )
                 }
             }
@@ -234,7 +248,7 @@ private fun HomeScreenContent(
             }
 
             if (state.isLoading && summary == null) {
-                items(2) {
+                items(2, contentType = { "skeleton" }) {
                     HomeSkeletonCard()
                 }
             } else if (summary?.recentExpenses.isNullOrEmpty()) {
@@ -245,10 +259,22 @@ private fun HomeScreenContent(
                     )
                 }
             } else {
-                items(summary?.recentExpenses ?: emptyList(), key = { it.id }) { expense ->
+                items(
+                    items = summary?.recentExpenses ?: emptyList(),
+                    key = { it.id },
+                    contentType = { "expense" }
+                ) { expense ->
+                    val onExpenseClick = remember(expense.id, onNavigateToExpenseDetail) {
+                        { onNavigateToExpenseDetail(expense.id) }
+                    }
+                    val groupCurrency = remember(expense.groupId, summary?.groups) {
+                        summary?.groups?.find { it.id == expense.groupId }?.currencySymbol
+                            ?: com.asim.splitmate.core.common.Constants.DEFAULT_CURRENCY_SYMBOL
+                    }
                     ExpenseCard(
                         expense = expense,
-                        onClick = { onNavigateToExpenseDetail(expense.id) }
+                        currencySymbol = groupCurrency,
+                        onClick = onExpenseClick
                     )
                 }
             }

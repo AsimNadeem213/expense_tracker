@@ -37,7 +37,7 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material3.Icon
 import androidx.compose.ui.unit.dp
 import com.asim.splitmate.core.ui.components.PrimaryButton
-import com.asim.splitmate.core.ui.theme.EmeraldPrimary
+import androidx.compose.runtime.LaunchedEffect
 
 @Composable
 fun LoginScreen(
@@ -49,8 +49,15 @@ fun LoginScreen(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
-    if (state.isSuccess || state.currentUser != null) {
-        onLoginSuccess()
+    LaunchedEffect(Unit) {
+        viewModel.resetState()
+    }
+
+    LaunchedEffect(state.isSuccess) {
+        if (state.isSuccess) {
+            onLoginSuccess()
+            viewModel.resetState()
+        }
     }
 
     Scaffold { padding ->
@@ -66,13 +73,13 @@ fun LoginScreen(
                 modifier = Modifier
                     .size(72.dp)
                     .clip(CircleShape)
-                    .background(EmeraldPrimary.copy(alpha = 0.15f)),
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Filled.AccountBalanceWallet,
                     contentDescription = "ExpenseMate Logo",
-                    tint = EmeraldPrimary,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(40.dp)
                 )
             }
@@ -82,7 +89,7 @@ fun LoginScreen(
             Text(
                 text = "ExpenseMate",
                 style = MaterialTheme.typography.headlineLarge,
-                color = EmeraldPrimary,
+                color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.ExtraBold
             )
             Spacer(modifier = Modifier.height(4.dp))
@@ -157,7 +164,7 @@ fun LoginScreen(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
                 TextButton(onClick = onNavigateToRegister) {
-                    Text("Register", fontWeight = FontWeight.Bold, color = EmeraldPrimary)
+                    Text("Register", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 }
             }
         }

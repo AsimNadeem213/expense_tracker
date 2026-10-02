@@ -30,7 +30,8 @@ class AddExpenseUseCase(
         customSplits: List<Split>,
         notes: String = "",
         date: Long = System.currentTimeMillis(),
-        existingExpenseId: String? = null
+        existingExpenseId: String? = null,
+        createdByUserId: String? = null
     ): Resource<Expense> {
         if (title.isBlank()) return Resource.Error("Expense title cannot be empty")
         if (amount <= 0.0) return Resource.Error("Expense amount must be greater than zero")
@@ -59,10 +60,14 @@ class AddExpenseUseCase(
         val expId = existingExpenseId?.takeIf { it.isNotBlank() }
             ?: ("exp_" + UUID.randomUUID().toString().take(8))
 
-        var originalCreatedBy = paidByUser.id
+        var originalCreatedBy = createdByUserId?.takeIf { it.isNotBlank() } ?: paidByUser.id
         if (isEditMode) {
             val existing = expenseRepository.getExpenseById(expId)
             if (existing != null && existing.createdBy.isNotBlank()) {
+                val currentUid = createdByUserId?.takeIf { it.isNotBlank() }
+                if (currentUid != null && existing.createdBy != currentUid && !(currentUid == "usr_you" && existing.createdBy.isBlank())) {
+                    return Resource.Error("Only the member who added this expense can edit it")
+                }
                 originalCreatedBy = existing.createdBy
             }
         }
@@ -85,20 +90,16 @@ class AddExpenseUseCase(
 
         val result = if (isEditMode) expenseRepository.updateExpense(expense) else expenseRepository.addExpense(expense)
 
-        if (result is Resource.Success) {
+        if (result is Resource.Success && !isEditMode) {
             try {
                 NotificationHelper.subscribeToGroupTopic(groupId)
-                val group = groupRepository.getGroupById(groupId).firstOrNull()
-                val groupName = group?.name ?: "Group"
-                val currencySymbol = group?.currencySymbol ?: com.asim.splitmate.core.common.Constants.DEFAULT_CURRENCY_SYMBOL
+                val currentFirebaseUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+                    ?: expense.createdBy
                 NotificationHelper.sendExpenseNotificationToGroup(
                     groupId = groupId,
-                    groupName = groupName,
-                    expenseTitle = expense.title,
-                    amount = expense.amount,
-                    currencySymbol = currencySymbol,
-                    paidByName = paidByUser.name,
-                    paidByUserId = paidByUser.id
+                    expenseId = expense.id,
+                    createdBy = currentFirebaseUid,
+                    context = context
                 )
             } catch (e: Exception) {
                 // Ignore non-fatal notification errors

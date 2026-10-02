@@ -72,7 +72,7 @@ class GroupRepositoryImpl(
             userDao = userDao,
             expenseDao = expenseDao,
             settlementDao = settlementDao,
-            coroutineScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO)
+            coroutineScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
         )
     }
 
@@ -80,7 +80,7 @@ class GroupRepositoryImpl(
         return try {
             val uniqueMembers = group.members.distinctBy { it.id }
             val cleanGroup = group.copy(members = uniqueMembers)
-            val groupEntity = GroupEntity.fromDomain(cleanGroup)
+            val groupEntity = GroupEntity.fromDomain(cleanGroup, isSynced = false)
             groupDao.insertGroup(groupEntity)
 
             val memberEntities = uniqueMembers.map { UserEntity.fromDomain(it) }
@@ -89,7 +89,10 @@ class GroupRepositoryImpl(
             val crossRefs = uniqueMembers.map { GroupMemberCrossRef(groupId = group.id, userId = it.id) }
             groupDao.insertGroupMembers(crossRefs)
 
-            realtimeDatabaseDataSource.syncGroup(cleanGroup)
+            val synced = realtimeDatabaseDataSource.syncGroup(cleanGroup)
+            if (synced) {
+                groupDao.markGroupSynced(cleanGroup.id)
+            }
             Resource.Success(cleanGroup)
         } catch (e: Exception) {
             Resource.Error(e.message ?: "Failed to create group", e)
@@ -108,7 +111,7 @@ class GroupRepositoryImpl(
 
             val uniqueMembers = group.members.distinctBy { it.id }
             val cleanGroup = group.copy(members = uniqueMembers)
-            val groupEntity = GroupEntity.fromDomain(cleanGroup)
+            val groupEntity = GroupEntity.fromDomain(cleanGroup, isSynced = false)
             groupDao.insertGroup(groupEntity)
 
             val memberEntities = uniqueMembers.map { UserEntity.fromDomain(it) }
@@ -118,7 +121,10 @@ class GroupRepositoryImpl(
             val crossRefs = uniqueMembers.map { GroupMemberCrossRef(groupId = group.id, userId = it.id) }
             groupDao.insertGroupMembers(crossRefs)
 
-            realtimeDatabaseDataSource.syncGroup(cleanGroup)
+            val synced = realtimeDatabaseDataSource.syncGroup(cleanGroup)
+            if (synced) {
+                groupDao.markGroupSynced(cleanGroup.id)
+            }
             Resource.Success(cleanGroup)
         } catch (e: Exception) {
             Resource.Error(e.message ?: "Failed to update group", e)
@@ -137,6 +143,13 @@ class GroupRepositoryImpl(
             }
             userDao.insertUser(UserEntity.fromDomain(user))
             groupDao.insertGroupMembers(listOf(GroupMemberCrossRef(groupId = groupId, userId = user.id)))
+
+            val groupEntity = groupDao.getGroupByIdSync(groupId)
+            if (groupEntity != null) {
+                val updatedMembers = groupDao.getGroupMembersSync(groupId).map { it.toDomain() }
+                realtimeDatabaseDataSource.syncGroup(groupEntity.toDomain(updatedMembers))
+            }
+
             Resource.Success(Unit)
         } catch (e: Exception) {
             Resource.Error(e.message ?: "Failed to add member", e)

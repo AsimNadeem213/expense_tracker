@@ -16,7 +16,8 @@ data class GroupEntity(
     val currencyCode: String,
     val createdBy: String,
     val createdAt: Long,
-    val inviteCode: String
+    val inviteCode: String,
+    val isSynced: Boolean = false
 ) {
     fun toDomain(members: List<User> = emptyList(), totalExpense: Double = 0.0): Group = Group(
         id = id,
@@ -33,7 +34,7 @@ data class GroupEntity(
     )
 
     companion object {
-        fun fromDomain(group: Group): GroupEntity = GroupEntity(
+        fun fromDomain(group: Group, isSynced: Boolean = false): GroupEntity = GroupEntity(
             id = group.id,
             name = group.name,
             description = group.description,
@@ -42,7 +43,8 @@ data class GroupEntity(
             currencyCode = group.currencyCode,
             createdBy = group.createdBy,
             createdAt = group.createdAt,
-            inviteCode = group.inviteCode
+            inviteCode = group.inviteCode,
+            isSynced = isSynced
         )
     }
 }

@@ -11,20 +11,15 @@ import androidx.core.app.NotificationCompat
 import com.asim.splitmate.MainActivity
 import com.asim.splitmate.R
 import com.google.firebase.messaging.FirebaseMessaging
-
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import org.json.JSONObject
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
 
 object NotificationHelper {
 
-    const val CHANNEL_ID = "group_expense_channel"
+    const val CHANNEL_ID = "group_expense_channel_v3"
     private const val CHANNEL_NAME = "Group Expense Updates"
-    private const val CHANNEL_DESC = "Notifications when new expenses or settlements are added in your groups"
+    private const val CHANNEL_DESC = "Notifications when new expenses are added in your groups"
 
     fun createNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -32,9 +27,12 @@ object NotificationHelper {
             val channel = NotificationChannel(CHANNEL_ID, CHANNEL_NAME, importance).apply {
                 description = CHANNEL_DESC
                 enableVibration(true)
+                vibrationPattern = longArrayOf(0, 250, 150, 250)
                 enableLights(true)
+                lightColor = android.graphics.Color.BLUE
                 setShowBadge(true)
                 lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+                setBypassDnd(true)
             }
             val notificationManager: NotificationManager =
                 context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -44,36 +42,43 @@ object NotificationHelper {
 
     fun showExpenseAddedNotification(
         context: Context,
-        groupName: String,
-        expenseTitle: String,
-        amount: Double,
-        currencySymbol: String,
-        paidByName: String
+        groupId: String
     ) {
         try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (androidx.core.content.ContextCompat.checkSelfPermission(
+                        context,
+                        android.Manifest.permission.POST_NOTIFICATIONS
+                    ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                ) {
+                    Log.w("NotificationHelper", "POST_NOTIFICATIONS permission not granted. Cannot post notification.")
+                    return
+                }
+            }
+
             createNotificationChannel(context)
 
             val intent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                putExtra("groupId", groupId)
             }
 
             val pendingIntent = PendingIntent.getActivity(
                 context,
-                System.currentTimeMillis().toInt(),
+                groupId.hashCode(),
                 intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
-            val title = "New Expense in $groupName"
-            val formattedAmount = "$currencySymbol${String.format("%.2f", amount)}"
-            val message = "$paidByName added '$expenseTitle' ($formattedAmount)"
+            val title = "New Expense Added"
+            val body = "A new expense was added to your group."
 
             val notification = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentTitle(title)
-                .setContentText(message)
-                .setStyle(NotificationCompat.BigTextStyle().bigText("$message in group '$groupName'"))
-                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .setContentText(body)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_MESSAGE)
                 .setDefaults(NotificationCompat.DEFAULT_ALL)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setAutoCancel(true)
@@ -82,15 +87,17 @@ object NotificationHelper {
 
             val notificationManager =
                 context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.notify(System.currentTimeMillis().toInt(), notification)
+            notificationManager.notify(groupId.hashCode(), notification)
+            Log.d("NotificationHelper", "Displayed notification: '$title' for group: $groupId")
         } catch (e: Exception) {
             Log.e("NotificationHelper", "Failed to post notification: ${e.message}", e)
         }
     }
 
     fun subscribeToGroupTopic(groupId: String) {
+        if (groupId.isBlank()) return
         try {
-            val cleanId = groupId.replace("[^a-zA-Z0-9-_.~%]", "_")
+            val cleanId = groupId.replace(Regex("[^a-zA-Z0-9-_.~%]"), "_")
             FirebaseMessaging.getInstance().subscribeToTopic("group_$cleanId")
                 .addOnCompleteListener { task ->
                     if (task.isSuccessful) {
@@ -105,8 +112,9 @@ object NotificationHelper {
     }
 
     fun unsubscribeFromGroupTopic(groupId: String) {
+        if (groupId.isBlank()) return
         try {
-            val cleanId = groupId.replace("[^a-zA-Z0-9-_.~%]", "_")
+            val cleanId = groupId.replace(Regex("[^a-zA-Z0-9-_.~%]"), "_")
             FirebaseMessaging.getInstance().unsubscribeFromTopic("group_$cleanId")
         } catch (e: Exception) {
             Log.e("NotificationHelper", "FCM topic unsubscription error: ${e.message}")
@@ -115,12 +123,8 @@ object NotificationHelper {
 
     fun sendExpenseNotificationToGroup(
         groupId: String,
-        groupName: String,
-        expenseTitle: String,
-        amount: Double,
-        currencySymbol: String,
-        paidByName: String,
-        paidByUserId: String,
+        expenseId: String,
+        createdBy: String,
         context: Context? = null
     ) {
         if (context != null && !isNetworkAvailable(context)) {
@@ -128,54 +132,27 @@ object NotificationHelper {
             return
         }
 
-        val cleanId = groupId.replace("[^a-zA-Z0-9-_.~%]", "_")
-        val topic = "/topics/group_$cleanId"
-        val formattedAmount = "$currencySymbol${String.format("%.2f", amount)}"
-
-        val title = "New Expense in $groupName"
-        val body = "$paidByName added '$expenseTitle' ($formattedAmount)"
-
-        Log.d("NotificationHelper", "Triggering FCM Push to $topic for '$groupName'")
+        val title = "New Expense Added"
+        val body = "A new expense was added to your group."
 
         CoroutineScope(Dispatchers.IO).launch {
+            // Write notification event to Firebase Realtime Database
             try {
-                val json = JSONObject().apply {
-                    put("to", topic)
-                    put("priority", "high")
-                    put("notification", JSONObject().apply {
-                        put("title", title)
-                        put("body", body)
-                        put("sound", "default")
-                    })
-                    put("data", JSONObject().apply {
-                        put("groupId", groupId)
-                        put("groupName", groupName)
-                        put("expenseTitle", expenseTitle)
-                        put("amount", amount.toString())
-                        put("currencySymbol", currencySymbol)
-                        put("paidByName", paidByName)
-                        put("paidByUserId", paidByUserId)
-                        put("createdBy", paidByUserId)
-                    })
-                }
-
-                val url = URL("https://fcm.googleapis.com/fcm/send")
-                val conn = url.openConnection() as HttpURLConnection
-                conn.requestMethod = "POST"
-                conn.setRequestProperty("Content-Type", "application/json")
-                conn.setRequestProperty("Authorization", "key=AIzaSyBZuPha4cQAeKItbOcZ3JfEkqlKP-SlZ_s")
-                conn.doOutput = true
-
-                OutputStreamWriter(conn.outputStream).use { writer ->
-                    writer.write(json.toString())
-                    writer.flush()
-                }
-
-                val responseCode = conn.responseCode
-                Log.d("NotificationHelper", "FCM Topic push response code: $responseCode")
-                conn.disconnect()
+                com.asim.splitmate.core.firebase.FirebaseHelper.database?.getReference("groups")
+                    ?.child(groupId)?.child("lastNotification")?.setValue(
+                        mapOf(
+                            "type" to "expense_added",
+                            "groupId" to groupId,
+                            "expenseId" to expenseId,
+                            "createdBy" to createdBy,
+                            "title" to title,
+                            "body" to body,
+                            "timestamp" to System.currentTimeMillis()
+                        )
+                    )
+                Log.d("NotificationHelper", "Logged expense notification to RTDB for group: $groupId")
             } catch (e: Exception) {
-                Log.e("NotificationHelper", "Error sending FCM topic push: ${e.message}", e)
+                Log.e("NotificationHelper", "Failed to log notification to RTDB: ${e.message}")
             }
         }
     }

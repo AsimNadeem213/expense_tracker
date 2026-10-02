@@ -66,6 +66,7 @@ import com.asim.splitmate.domain.usecase.GroupBalancesResult
 
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.PaddingValues
 import com.asim.splitmate.core.ui.components.GroupQrDialog
 
 import androidx.compose.material.icons.filled.MoreVert
@@ -206,7 +207,7 @@ fun GroupDetailScreen(
             if (selectedTabIndex == 0) {
                 FloatingActionButton(
                     onClick = { onNavigateToAddExpense(groupId) },
-                    containerColor = EmeraldPrimary,
+                    containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 ) {
                     Icon(Icons.Filled.Add, contentDescription = "Add Expense")
@@ -262,7 +263,7 @@ fun GroupDetailScreen(
                                 Icon(
                                     imageVector = Icons.Filled.QrCode2,
                                     contentDescription = "Show QR Code",
-                                    tint = EmeraldPrimary,
+                                    tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -270,7 +271,7 @@ fun GroupDetailScreen(
                                     text = "Code: ${group.inviteCode} • Tap for QR",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = EmeraldPrimary
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             }
                         }
@@ -285,7 +286,7 @@ fun GroupDetailScreen(
                                 text = CurrencyFormatter.format(group.totalExpense, group.currencySymbol),
                                 style = MaterialTheme.typography.headlineMedium,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = EmeraldPrimary
+                                color = MaterialTheme.colorScheme.primary
                             )
                         }
                     }
@@ -353,12 +354,13 @@ private fun ExpensesTab(
     onNavigateToAddExpense: () -> Unit
 ) {
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        item {
+        item(
+            key = "expense_header"
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -369,16 +371,26 @@ private fun ExpensesTab(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
-                OutlinedButton(onClick = onNavigateToAddExpense) {
-                    Icon(Icons.Filled.Add, contentDescription = null)
+
+                OutlinedButton(
+                    onClick = onNavigateToAddExpense
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = null
+                    )
+
                     Spacer(modifier = Modifier.width(4.dp))
+
                     Text("Add Expense")
                 }
             }
         }
 
         if (expenses.isEmpty()) {
-            item {
+            item(
+                key = "empty_state"
+            ) {
                 EmptyState(
                     title = "No Expenses Yet",
                     description = "Tap 'Add Expense' above to record the first expense in this group.",
@@ -387,11 +399,18 @@ private fun ExpensesTab(
                 )
             }
         } else {
-            items(expenses, key = { it.id }) { expense ->
+            items(
+                items = expenses,
+                key = { expense -> expense.id },
+                contentType = { "expense" }
+            ) { expense ->
+
                 ExpenseCard(
                     expense = expense,
                     currencySymbol = currencySymbol,
-                    onClick = { onNavigateToExpenseDetail(expense.id) }
+                    onClick = {
+                        onNavigateToExpenseDetail(expense.id)
+                    }
                 )
             }
         }
@@ -445,13 +464,17 @@ private fun BalancesTab(
                             text = "🎉 Everyone is settled up! Zero net debts in this group.",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = EmeraldPrimary
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
             }
         } else {
-            items(debts) { debt ->
+            items(
+                items = debts,
+                key = { "${it.fromUserId}_${it.toUserId}" },
+                contentType = { "debt" }
+            ) { debt ->
                 DebtFlowCard(
                     debt = debt,
                     currentUserId = currentUserId,
@@ -470,7 +493,11 @@ private fun BalancesTab(
             )
         }
 
-        items(netBalances) { balance ->
+        items(
+            items = netBalances,
+            key = { it.userId },
+            contentType = { "net_balance" }
+        ) { balance ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -483,14 +510,14 @@ private fun BalancesTab(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(EmeraldPrimary.copy(alpha = 0.15f)),
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = balance.userName.take(1).uppercase(),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = EmeraldPrimary
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
@@ -527,7 +554,11 @@ private fun BalancesTab(
                 )
             }
 
-            items(settlements) { set ->
+            items(
+                items = settlements,
+                key = { it.id },
+                contentType = { "settlement" }
+            ) { set ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
@@ -576,13 +607,6 @@ private fun BalancesTab(
                             fontWeight = FontWeight.Bold,
                             color = GreenOwed
                         )
-                        IconButton(onClick = { onDeleteSettlement(set.id) }) {
-                            Icon(
-                                imageVector = Icons.Filled.Delete,
-                                contentDescription = "Delete settlement",
-                                tint = MaterialTheme.colorScheme.error
-                            )
-                        }
                     }
                 }
             }

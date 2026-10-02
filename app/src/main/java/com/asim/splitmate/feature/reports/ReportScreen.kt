@@ -115,7 +115,7 @@ fun ReportScreen(
                     enabled = dateRangePickerState.selectedStartDateMillis != null &&
                             dateRangePickerState.selectedEndDateMillis != null
                 ) {
-                    Text("Apply", fontWeight = FontWeight.Bold, color = EmeraldPrimary)
+                    Text("Apply", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 }
             },
             dismissButton = {
@@ -148,7 +148,7 @@ fun ReportScreen(
                         text = rangeText,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
-                        color = EmeraldPrimary,
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(start = 24.dp, bottom = 12.dp)
                     )
                 },
@@ -175,7 +175,7 @@ fun ReportScreen(
                     .padding(padding),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = EmeraldPrimary)
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
         } else {
             Column(
@@ -197,7 +197,11 @@ fun ReportScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(ReportPeriod.entries.toTypedArray(), key = { it.name }) { period ->
+                        items(
+                            items = ReportPeriod.entries,
+                            key = { it.name },
+                            contentType = { "period_chip" }
+                        ) { period ->
                             FilterChip(
                                 selected = state.selectedPeriod == period,
                                 onClick = {
@@ -210,8 +214,8 @@ fun ReportScreen(
                                 },
                                 label = { Text(period.title, fontWeight = FontWeight.SemiBold) },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = EmeraldPrimary,
-                                    selectedLabelColor = Color.White
+                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
                                 )
                             )
                         }
@@ -237,7 +241,7 @@ fun ReportScreen(
                                     Icon(
                                         imageVector = Icons.Filled.DateRange,
                                         contentDescription = null,
-                                        tint = EmeraldPrimary,
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -252,7 +256,7 @@ fun ReportScreen(
                                 Text(
                                     text = "Change",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = EmeraldPrimary,
+                                    color = MaterialTheme.colorScheme.primary,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -304,7 +308,8 @@ fun ReportScreen(
 
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column {
                                         Text(
@@ -318,6 +323,22 @@ fun ReportScreen(
                                             fontWeight = FontWeight.Bold,
                                             color = Color.White
                                         )
+                                    }
+
+                                    if (state.totalGroupSpending > 0.0) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text(
+                                                text = "Group Total",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = Color.White.copy(alpha = 0.75f)
+                                            )
+                                            Text(
+                                                text = CurrencyFormatter.format(state.totalGroupSpending, Constants.DEFAULT_CURRENCY_SYMBOL),
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
+                                        }
                                     }
 
                                     Column(horizontalAlignment = Alignment.End) {
@@ -363,7 +384,7 @@ fun ReportScreen(
                                 Icon(
                                     imageVector = Icons.Filled.Receipt,
                                     contentDescription = null,
-                                    tint = EmeraldPrimary,
+                                    tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(24.dp)
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -389,7 +410,7 @@ fun ReportScreen(
                                 Icon(
                                     imageVector = Icons.Filled.Category,
                                     contentDescription = null,
-                                    tint = EmeraldPrimary,
+                                    tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(24.dp)
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -427,6 +448,7 @@ fun ReportScreen(
                                 verticalArrangement = Arrangement.spacedBy(14.dp)
                             ) {
                                 state.categoryStats.forEach { catStat ->
+                                    val catColor = remember(catStat.category.colorHex) { parseHexColor(catStat.category.colorHex) }
                                     Column {
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
@@ -438,7 +460,7 @@ fun ReportScreen(
                                                     modifier = Modifier
                                                         .size(10.dp)
                                                         .clip(CircleShape)
-                                                        .background(EmeraldPrimary)
+                                                        .background(catColor)
                                                 )
                                                 Spacer(modifier = Modifier.width(8.dp))
                                                 Text(
@@ -461,8 +483,8 @@ fun ReportScreen(
                                                 .fillMaxWidth()
                                                 .height(8.dp)
                                                 .clip(RoundedCornerShape(4.dp)),
-                                            color = EmeraldPrimary,
-                                            trackColor = EmeraldPrimary.copy(alpha = 0.15f)
+                                            color = MaterialTheme.colorScheme.primary,
+                                            trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                                         )
                                     }
                                 }
@@ -489,10 +511,17 @@ fun ReportScreen(
                         )
                     }
                 } else {
-                    items(state.periodExpenses, key = { it.id }) { expense ->
+                    items(
+                        items = state.periodExpenses,
+                        key = { it.id },
+                        contentType = { "expense" }
+                    ) { expense ->
+                        val onExpenseClick = remember(expense.id, onNavigateToExpenseDetail) {
+                            { onNavigateToExpenseDetail(expense.id) }
+                        }
                         ExpenseCard(
                             expense = expense,
-                            onClick = { onNavigateToExpenseDetail(expense.id) }
+                            onClick = onExpenseClick
                         )
                     }
                 }
@@ -504,4 +533,12 @@ fun ReportScreen(
         }
     }
 }
+}
+
+private fun parseHexColor(hex: String): Color {
+    return try {
+        Color(android.graphics.Color.parseColor(hex))
+    } catch (_: Exception) {
+        Color(0xFF0F766E)
+    }
 }

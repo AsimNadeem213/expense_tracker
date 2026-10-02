@@ -38,6 +38,12 @@ interface GroupDao {
     """)
     suspend fun getGroupMembersSync(groupId: String): List<UserEntity>
 
+    @Query("UPDATE groups SET isSynced = 1 WHERE id = :groupId")
+    suspend fun markGroupSynced(groupId: String)
+
+    @Query("SELECT * FROM groups WHERE isSynced = 0")
+    suspend fun getUnsyncedGroups(): List<GroupEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertGroup(group: GroupEntity)
 

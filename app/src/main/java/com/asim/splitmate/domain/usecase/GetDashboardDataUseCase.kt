@@ -11,10 +11,14 @@ import com.asim.splitmate.domain.model.Settlement
 import com.asim.splitmate.domain.repository.ExpenseRepository
 import com.asim.splitmate.domain.repository.GroupRepository
 import com.asim.splitmate.domain.repository.SettlementRepository
+import androidx.compose.runtime.Immutable
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlin.math.abs
 
+@Immutable
 data class DashboardSummary(
     val groups: List<Group>,
     val recentExpenses: List<Expense>,
@@ -102,6 +106,6 @@ class GetDashboardDataUseCase(
                 totalYouAreOwed = roundedOwed,
                 netOverallBalance = roundedOwed - roundedOwe
             )
-        }
+        }.flowOn(Dispatchers.IO)
     }
 }

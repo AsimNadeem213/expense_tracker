@@ -18,4 +18,3 @@ dependencyResolutionManagement {
 
 rootProject.name = "expense"
 include(":app")
- 

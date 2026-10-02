@@ -20,7 +20,8 @@ data class ExpenseEntity(
     val splitType: String,
     val notes: String,
     val createdBy: String = paidByUserId,
-    val isEdited: Boolean = false
+    val isEdited: Boolean = false,
+    val isSynced: Boolean = false
 ) {
     fun toDomain(splits: List<Split>): Expense = Expense(
         id = id,
@@ -39,7 +40,7 @@ data class ExpenseEntity(
     )
 
     companion object {
-        fun fromDomain(expense: Expense): ExpenseEntity = ExpenseEntity(
+        fun fromDomain(expense: Expense, isSynced: Boolean = false): ExpenseEntity = ExpenseEntity(
             id = expense.id,
             groupId = expense.groupId,
             title = expense.title,
@@ -51,7 +52,8 @@ data class ExpenseEntity(
             splitType = expense.splitType.name,
             notes = expense.notes,
             createdBy = expense.createdBy,
-            isEdited = expense.isEdited
+            isEdited = expense.isEdited,
+            isSynced = isSynced
         )
     }
 }

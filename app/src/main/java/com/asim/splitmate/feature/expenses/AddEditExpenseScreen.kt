@@ -74,6 +74,14 @@ fun AddEditExpenseScreen(
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val isEditMode = !expenseId.isNullOrBlank()
+    val currentUserId = state.currentUserId
+    val isCreator = remember(isEditMode, state.currentExpense, currentUserId) {
+        if (!isEditMode || state.currentExpense == null) true
+        else {
+            val exp = state.currentExpense!!
+            exp.createdBy.isBlank() || exp.createdBy == currentUserId || (currentUserId.isBlank() && exp.createdBy == "usr_you")
+        }
+    }
 
     LaunchedEffect(groupId, expenseId) {
         if (isEditMode && expenseId != null) {
@@ -161,6 +169,23 @@ fun AddEditExpenseScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
+                if (isEditMode && !isCreator && state.currentExpense != null) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                    ) {
+                        Text(
+                            text = "Only the member who added this expense can edit or delete it.",
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                }
+
                 if (state.error != null) {
                     Text(
                         text = state.error!!,
@@ -238,11 +263,11 @@ fun AddEditExpenseScreen(
                         enabled = false,
                         label = { Text("Expense Date *") },
                         trailingIcon = {
-                            IconButton(onClick = { showDatePicker() }) {
+                            IconButton(onClick = { if (isCreator) showDatePicker() }) {
                                 Icon(
                                     imageVector = Icons.Filled.CalendarToday,
                                     contentDescription = "Select Date",
-                                    tint = EmeraldPrimary
+                                    tint = MaterialTheme.colorScheme.primary
                                 )
                             }
                         },
@@ -250,7 +275,7 @@ fun AddEditExpenseScreen(
                             disabledTextColor = MaterialTheme.colorScheme.onSurface,
                             disabledBorderColor = MaterialTheme.colorScheme.outline,
                             disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            disabledTrailingIconColor = EmeraldPrimary
+                            disabledTrailingIconColor = MaterialTheme.colorScheme.primary
                         ),
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
@@ -258,7 +283,7 @@ fun AddEditExpenseScreen(
                     Box(
                         modifier = Modifier
                             .matchParentSize()
-                            .clickable { showDatePicker() }
+                            .clickable(enabled = isCreator) { showDatePicker() }
                     )
                 }
             }
@@ -581,6 +606,7 @@ fun AddEditExpenseScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 PrimaryButton(
                     text = if (isEditMode) "Update Expense" else "Save Expense",
+                    enabled = isCreator,
                     onClick = {
                         viewModel.addExpense(
                             groupId = groupId ?: group?.id,

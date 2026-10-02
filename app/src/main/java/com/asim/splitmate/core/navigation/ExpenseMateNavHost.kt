@@ -33,7 +33,19 @@ import com.asim.splitmate.feature.reports.ReportViewModel
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
-fun ExpenseMateNavHost(navController: NavHostController) {
+fun ExpenseMateNavHost(
+    navController: NavHostController,
+    pendingGroupId: String? = null,
+    onGroupIdHandled: () -> Unit = {}
+) {
+    androidx.compose.runtime.LaunchedEffect(pendingGroupId) {
+        val target = pendingGroupId
+        if (!target.isNullOrBlank()) {
+            navController.navigate(Screen.GroupDetail.createRoute(target))
+            onGroupIdHandled()
+        }
+    }
+
     val navigateToBottomTab: (String) -> Unit = { targetRoute ->
         if (targetRoute != navController.currentDestination?.route) {
             navController.navigate(targetRoute) {
@@ -65,6 +77,10 @@ fun ExpenseMateNavHost(navController: NavHostController) {
                 onNavigateToDashboard = {
                     navController.navigate(Screen.Dashboard.route) {
                         popUpTo(Screen.Splash.route) { inclusive = true }
+                    }
+                    if (!pendingGroupId.isNullOrBlank()) {
+                        navController.navigate(Screen.GroupDetail.createRoute(pendingGroupId))
+                        onGroupIdHandled()
                     }
                 }
             )
@@ -249,7 +265,11 @@ fun ExpenseMateNavHost(navController: NavHostController) {
             val profileViewModel: ProfileViewModel = koinViewModel()
             ProfileScreen(
                 viewModel = profileViewModel,
-                onLogout = { navController.navigate(Screen.Splash.route) { popUpTo(0) { inclusive = true } } },
+                onLogout = {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
                 onNavigateTab = navigateToBottomTab
             )
         }

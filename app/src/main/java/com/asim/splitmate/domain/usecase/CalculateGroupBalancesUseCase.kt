@@ -6,9 +6,13 @@ import com.asim.splitmate.data.local.dao.GroupDao
 import com.asim.splitmate.data.local.dao.SettlementDao
 import com.asim.splitmate.domain.model.NetBalance
 import com.asim.splitmate.domain.model.SimplifiedDebt
+import androidx.compose.runtime.Immutable
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 
+@Immutable
 data class GroupBalancesResult(
     val netBalances: List<NetBalance>,
     val simplifiedDebts: List<SimplifiedDebt>,
@@ -42,6 +46,6 @@ class CalculateGroupBalancesUseCase(
                 simplifiedDebts = simplifiedDebts,
                 userNetBalance = userNet
             )
-        }
+        }.flowOn(Dispatchers.IO)
     }
 }

@@ -15,7 +15,8 @@ data class SettlementEntity(
     val amount: Double,
     val date: Long,
     val paymentMethod: String,
-    val notes: String
+    val notes: String,
+    val isSynced: Boolean = false
 ) {
     fun toDomain(): Settlement = Settlement(
         id = id,
@@ -31,7 +32,7 @@ data class SettlementEntity(
     )
 
     companion object {
-        fun fromDomain(settlement: Settlement): SettlementEntity = SettlementEntity(
+        fun fromDomain(settlement: Settlement, isSynced: Boolean = false): SettlementEntity = SettlementEntity(
             id = settlement.id,
             groupId = settlement.groupId,
             payerId = settlement.payerId,
@@ -41,7 +42,8 @@ data class SettlementEntity(
             amount = settlement.amount,
             date = settlement.date,
             paymentMethod = settlement.paymentMethod,
-            notes = settlement.notes
+            notes = settlement.notes,
+            isSynced = isSynced
         )
     }
 }

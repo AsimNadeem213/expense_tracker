@@ -13,7 +13,9 @@ object CurrencyFormatter {
         }
         val formattedNumber = formatter.format(abs(amount))
         val sign = if (amount < 0) "-" else ""
-        return "$sign$symbol$formattedNumber"
+        val cleanSymbol = symbol.trim()
+        val spacing = if (cleanSymbol.isNotEmpty() && cleanSymbol.last().isLetter()) " " else ""
+        return "$sign$cleanSymbol$spacing$formattedNumber"
     }
 
     fun formatSigned(amount: Double, symbol: String = Constants.DEFAULT_CURRENCY_SYMBOL): String {
@@ -22,10 +24,12 @@ object CurrencyFormatter {
             maximumFractionDigits = 2
         }
         val formattedNumber = formatter.format(abs(amount))
+        val cleanSymbol = symbol.trim()
+        val spacing = if (cleanSymbol.isNotEmpty() && cleanSymbol.last().isLetter()) " " else ""
         return when {
-            amount > 0.01 -> "+$symbol$formattedNumber"
-            amount < -0.01 -> "-$symbol$formattedNumber"
-            else -> "${symbol}0"
+            amount > 0.01 -> "+$cleanSymbol$spacing$formattedNumber"
+            amount < -0.01 -> "-$cleanSymbol$spacing$formattedNumber"
+            else -> "$cleanSymbol${spacing}0"
         }
     }
 }

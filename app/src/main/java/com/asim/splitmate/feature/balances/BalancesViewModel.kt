@@ -16,7 +16,8 @@ data class BalancesUiState(
     val groups: List<Group> = emptyList(),
     val selectedGroup: Group? = null,
     val balancesResult: GroupBalancesResult? = null,
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val currentUserId: String = "usr_you"
 )
 
 class BalancesViewModel(
@@ -38,7 +39,7 @@ class BalancesViewModel(
             val userId = user?.id ?: "usr_you"
 
             groupRepository.getAllGroups().collect { groups ->
-                _uiState.value = _uiState.value.copy(groups = groups, isLoading = false)
+                _uiState.value = _uiState.value.copy(groups = groups, isLoading = false, currentUserId = userId)
                 if (groups.isNotEmpty() && _uiState.value.selectedGroup == null) {
                     selectGroup(groups.first().id)
                 }
@@ -55,7 +56,7 @@ class BalancesViewModel(
             val userId = user?.id ?: "usr_you"
 
             calculateGroupBalancesUseCase.execute(groupId, userId).collect { res ->
-                _uiState.value = _uiState.value.copy(balancesResult = res)
+                _uiState.value = _uiState.value.copy(balancesResult = res, currentUserId = userId)
             }
         }
     }

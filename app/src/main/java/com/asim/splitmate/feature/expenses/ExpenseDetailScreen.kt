@@ -97,9 +97,10 @@ fun ExpenseDetailScreen(
         )
     }
 
-    val isCreatorOrPayer = expense != null && (
-        expense.paidByUserId == state.currentUserId ||
-        expense.createdBy == state.currentUserId
+    val currentUserId = state.currentUserId
+    val isCreator = expense != null && (
+        (currentUserId.isNotBlank() && expense.createdBy == currentUserId) ||
+        (currentUserId.isBlank() && expense.createdBy == "usr_you")
     )
 
     Scaffold(
@@ -109,7 +110,7 @@ fun ExpenseDetailScreen(
                 canNavigateBack = true,
                 onBackClick = onNavigateBack,
                 actions = {
-                    if (expense != null && isCreatorOrPayer) {
+                    if (expense != null && isCreator) {
                         IconButton(onClick = { onNavigateToEditExpense(expense.id) }) {
                             Icon(Icons.Filled.Edit, contentDescription = "Edit Expense")
                         }
@@ -132,7 +133,7 @@ fun ExpenseDetailScreen(
                     .padding(padding),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator()
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
         } else {
             LazyColumn(
@@ -152,20 +153,21 @@ fun ExpenseDetailScreen(
                                 Text(
                                     text = expense.title,
                                     style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                                 if (expense.isEdited) {
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(6.dp))
-                                            .background(EmeraldPrimary)
+                                            .background(MaterialTheme.colorScheme.primary)
                                             .padding(horizontal = 8.dp, vertical = 3.dp)
                                     ) {
                                         Text(
                                             text = "Edited",
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = Color.White,
+                                            color = MaterialTheme.colorScheme.onPrimary,
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
@@ -176,7 +178,7 @@ fun ExpenseDetailScreen(
                                 text = CurrencyFormatter.format(expense.amount),
                                 style = MaterialTheme.typography.displayLarge,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = EmeraldPrimary
+                                color = MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
@@ -237,7 +239,7 @@ fun ExpenseDetailScreen(
                                 text = CurrencyFormatter.format(split.amount),
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = EmeraldPrimary
+                                color = MaterialTheme.colorScheme.primary
                             )
                         }
                     }

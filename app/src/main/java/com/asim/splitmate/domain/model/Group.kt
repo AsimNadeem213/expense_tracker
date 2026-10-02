@@ -1,5 +1,7 @@
 package com.asim.splitmate.domain.model
 
+import androidx.compose.runtime.Immutable
+
 enum class GroupType {
     TRIP,
     HOME,
@@ -7,6 +9,7 @@ enum class GroupType {
     OTHER
 }
 
+@Immutable
 data class Group(
     val id: String,
     val name: String,

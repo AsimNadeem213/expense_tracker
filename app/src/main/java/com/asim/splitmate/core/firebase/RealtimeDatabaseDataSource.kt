@@ -25,11 +25,12 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 class RealtimeDatabaseDataSource(
     private val context: android.content.Context? = null,
-    private val networkMonitor: com.asim.splitmate.core.network.NetworkMonitor? = null
+    private val networkMonitor: com.asim.splitmate.core.network.NetworkMonitor? = null,
+    private val syncDao: com.asim.splitmate.data.local.dao.SyncDao? = null
 ) {
     private val db get() = FirebaseHelper.database
 
-    private var isRealtimeSyncStarted = false
+    private var currentSyncUserId: String? = null
 
     fun startRealtimeSync(
         userId: String,
@@ -40,11 +41,34 @@ class RealtimeDatabaseDataSource(
         settlementDao: SettlementDao,
         coroutineScope: kotlinx.coroutines.CoroutineScope
     ) {
-        if (isRealtimeSyncStarted) return
+        if (currentSyncUserId == userId) return
+        currentSyncUserId = userId
         val database = db ?: return
 
+        // 1. Listen for network changes to automatically sync when internet becomes available
+        networkMonitor?.let { monitor ->
+            coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                monitor.isOnline.collect { online ->
+                    if (online) {
+                        Log.d("FirebaseSync", "Network connection restored! Syncing pending offline data...")
+                        syncPendingLocalData(groupDao, expenseDao, settlementDao)
+                        fetchAndSyncRemoteData(
+                            userId = userId,
+                            userName = userName,
+                            groupDao = groupDao,
+                            userDao = userDao,
+                            expenseDao = expenseDao,
+                            settlementDao = settlementDao
+                        )
+                    }
+                }
+            }
+        }
+
+        // 2. Realtime listener for remote changes on /groups node
         val listener = object : com.google.firebase.database.ValueEventListener {
             override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
+                Log.d("FirebaseSync", "onDataChange triggered from Firebase! Children count = ${snapshot.childrenCount}")
                 coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                     fetchAndSyncRemoteData(
                         userId = userId,
@@ -52,7 +76,8 @@ class RealtimeDatabaseDataSource(
                         groupDao = groupDao,
                         userDao = userDao,
                         expenseDao = expenseDao,
-                        settlementDao = settlementDao
+                        settlementDao = settlementDao,
+                        cachedSnapshot = snapshot
                     )
                 }
             }
@@ -63,8 +88,7 @@ class RealtimeDatabaseDataSource(
         }
 
         database.getReference("groups").addValueEventListener(listener)
-        isRealtimeSyncStarted = true
-        Log.d("FirebaseSync", "Realtime Firebase listener registered successfully for /groups node!")
+        Log.d("FirebaseSync", "Realtime Firebase listener registered successfully for /groups node (User: $userId)!")
     }
 
     suspend fun fetchAndSyncRemoteData(
@@ -73,19 +97,26 @@ class RealtimeDatabaseDataSource(
         groupDao: GroupDao,
         userDao: UserDao,
         expenseDao: ExpenseDao,
-        settlementDao: SettlementDao
+        settlementDao: SettlementDao,
+        cachedSnapshot: com.google.firebase.database.DataSnapshot? = null
     ) {
         if (networkMonitor?.isCurrentlyOnline() == false) {
             Log.d("FirebaseSync", "Offline: Skipping remote fetchAndSyncRemoteData")
             return
         }
         try {
+            // Step 1: Ensure any offline created expenses, groups, and settlements are synced first
+            syncPendingLocalData(groupDao, expenseDao, settlementDao)
+
             val database = db ?: return
             val dbRef = database.getReference("groups")
 
-            val snapshot = withTimeoutOrNull(5000L) {
+            val snapshot = cachedSnapshot ?: withTimeoutOrNull(5000L) {
                 dbRef.get().await()
-            } ?: return
+            } ?: run {
+                Log.w("FirebaseSync", "fetchAndSyncRemoteData: snapshot fetch timed out or null")
+                return
+            }
 
             val remoteGroupIdsForUser = mutableSetOf<String>()
             val remoteExpenseIdsByGroup = mutableMapOf<String, MutableSet<String>>()
@@ -121,12 +152,60 @@ class RealtimeDatabaseDataSource(
                 val membersSnap = groupSnap.child("members")
                 val memberKeys = membersSnap.children.mapNotNull { it.child("id").getValue(String::class.java) ?: it.key }.toSet()
 
-                val isUserMember = createdBy == currentUid ||
+                val currentUserDb = userDao.getCurrentUserSync()
+                val currentEmail = currentUserDb?.email?.trim()?.takeIf { it.isNotBlank() }
+                    ?: FirebaseHelper.auth?.currentUser?.email?.trim()?.takeIf { it.isNotBlank() } ?: ""
+                val currentName = currentUserDb?.name?.trim()?.takeIf { it.isNotBlank() && it != "You" }
+                    ?: FirebaseHelper.auth?.currentUser?.displayName?.trim()?.takeIf { it.isNotBlank() }
+                    ?: userName.trim().takeIf { it.isNotBlank() && it != "You" } ?: ""
+
+                var isUserMember = createdBy == currentUid ||
                         memberIdsList.contains(currentUid) ||
                         memberKeys.contains(currentUid)
 
                 if (!isUserMember) {
+                    if (currentEmail.isNotBlank()) {
+                        for (mSnap in membersSnap.children) {
+                            val email = mSnap.child("email").getValue(String::class.java) ?: ""
+                            if (email.isNotBlank() && email.equals(currentEmail, ignoreCase = true)) {
+                                isUserMember = true
+                                break
+                            }
+                        }
+                    }
+                    if (!isUserMember && currentName.isNotBlank()) {
+                        for (mSnap in membersSnap.children) {
+                            val name = mSnap.child("name").getValue(String::class.java) ?: ""
+                            if (name.isNotBlank() && name.equals(currentName, ignoreCase = true)) {
+                                isUserMember = true
+                                break
+                            }
+                        }
+                        if (!isUserMember && memberNamesList.any { it.equals(currentName, ignoreCase = true) }) {
+                            isUserMember = true
+                        }
+                    }
+                }
+
+                if (!isUserMember) {
                     continue
+                }
+
+                // If user was matched via placeholder name/email, auto-link real UID to group in Firebase
+                if (currentUid.isNotBlank() && !memberIdsList.contains(currentUid)) {
+                    try {
+                        val groupRef = database.getReference("groups").child(groupId)
+                        val updatedIds = (memberIdsList + currentUid).distinct()
+                        groupRef.child("memberIds").setValue(updatedIds)
+                        val linkMap = mapOf(
+                            "id" to currentUid,
+                            "name" to (if (currentName.isNotBlank()) currentName else "Member"),
+                            "email" to currentEmail
+                        )
+                        groupRef.child("members").child(currentUid).setValue(linkMap)
+                    } catch (e: Exception) {
+                        Log.w("FirebaseSync", "Auto-link member failed: ${e.message}")
+                    }
                 }
 
                 remoteGroupIdsForUser.add(groupId)
@@ -141,7 +220,8 @@ class RealtimeDatabaseDataSource(
                     currencyCode = currencyCode,
                     createdBy = createdBy,
                     createdAt = createdAt,
-                    inviteCode = inviteCode
+                    inviteCode = inviteCode,
+                    isSynced = true
                 )
                 groupDao.insertGroup(groupEntity)
 
@@ -159,10 +239,11 @@ class RealtimeDatabaseDataSource(
 
                         val mName = mSnap.child("name").getValue(String::class.java) ?: "Member"
                         val mEmail = mSnap.child("email").getValue(String::class.java) ?: ""
-                        val isCurrent = (mId == userId)
+                        val isCurrent = (mId == userId) || (mId == currentUid) ||
+                                (currentEmail.isNotBlank() && mEmail.equals(currentEmail, ignoreCase = true)) ||
+                                (currentName.isNotBlank() && mName.equals(currentName, ignoreCase = true))
 
                         val existingUser = userDao.getUserById(mId)
-                        val currentUserDb = userDao.getCurrentUserSync()
                         val finalEmail = when {
                             mEmail.isNotBlank() -> mEmail
                             existingUser != null && existingUser.email.isNotBlank() -> existingUser.email
@@ -185,10 +266,10 @@ class RealtimeDatabaseDataSource(
                     var idx = 0
                     for (mId in memberIdsList) {
                         val mName = memberNamesList.getOrNull(idx) ?: "Member"
-                        val isCurrent = (mId == userId)
+                        val isCurrent = (mId == userId) || (mId == currentUid) ||
+                                (currentName.isNotBlank() && mName.equals(currentName, ignoreCase = true))
 
                         val existingUser = userDao.getUserById(mId)
-                        val currentUserDb = userDao.getCurrentUserSync()
                         val finalEmail = when {
                             existingUser != null && existingUser.email.isNotBlank() -> existingUser.email
                             isCurrent && currentUserDb != null && currentUserDb.email.isNotBlank() -> currentUserDb.email
@@ -242,9 +323,17 @@ class RealtimeDatabaseDataSource(
                     val createdByExp = expSnap.child("createdBy").getValue(String::class.java) ?: paidByUserId
                     val isEdited = expSnap.child("isEdited").getValue(Boolean::class.java) ?: false
 
+                    val isPendingDeletion = syncDao?.getAllPendingDeletions()?.any { it.id == expId } == true
+                    if (isPendingDeletion) {
+                        Log.d("FirebaseSync", "Skipping re-insertion of locally deleted expense: $expId")
+                        deleteExpense(groupId, expId)
+                        continue
+                    }
+
                     val existingExp = expenseDao.getExpenseById(expId)
                     val currentUid = FirebaseHelper.currentUserId ?: userId
-                    val isNewRemoteExpense = (existingExp == null) && (paidByUserId != currentUid) && (createdByExp != currentUid)
+                    val isSelfCreated = (createdByExp == currentUid) || (createdByExp == "usr_you" && currentUid.isBlank())
+                    val isNewRemoteExpense = (existingExp == null) && !isSelfCreated
 
                     val expenseEntity = ExpenseEntity(
                         id = expId,
@@ -258,20 +347,12 @@ class RealtimeDatabaseDataSource(
                         splitType = splitType.name,
                         notes = notes,
                         createdBy = createdByExp,
-                        isEdited = isEdited
+                        isEdited = isEdited,
+                        isSynced = true
                     )
                     expenseDao.insertExpense(expenseEntity)
 
-                    if (isNewRemoteExpense && context != null) {
-                        com.asim.splitmate.core.notification.NotificationHelper.showExpenseAddedNotification(
-                            context = context,
-                            groupName = name,
-                            expenseTitle = title,
-                            amount = amount,
-                            currencySymbol = currencySymbol,
-                            paidByName = paidByUserName
-                        )
-                    }
+                    Log.d("FirebaseSync", "Synced remote expense '$title' ($expId)")
 
                     val splitsSnap = expSnap.child("splits")
                     val remoteSplits = mutableListOf<ExpenseSplitEntity>()
@@ -322,6 +403,14 @@ class RealtimeDatabaseDataSource(
                 for (setSnap in settlementsSnap.children) {
                     val setId = setSnap.child("id").getValue(String::class.java) ?: setSnap.key ?: continue
                     remoteSettlementsForThisGroup.add(setId)
+
+                    val isPendingSetDeletion = syncDao?.getAllPendingDeletions()?.any { it.id == setId } == true
+                    if (isPendingSetDeletion) {
+                        Log.d("FirebaseSync", "Skipping re-insertion of locally deleted settlement: $setId")
+                        deleteSettlement(groupId, setId)
+                        continue
+                    }
+
                     val payerId = setSnap.child("payerId").getValue(String::class.java) ?: ""
                     val payerName = setSnap.child("payerName").getValue(String::class.java) ?: ""
                     val recipientId = setSnap.child("recipientId").getValue(String::class.java) ?: ""
@@ -341,7 +430,8 @@ class RealtimeDatabaseDataSource(
                         amount = setAmount,
                         date = setDate,
                         paymentMethod = paymentMethod,
-                        notes = notes
+                        notes = notes,
+                        isSynced = true
                     )
                     settlementDao.insertSettlement(settlementEntity)
                 }
@@ -349,26 +439,45 @@ class RealtimeDatabaseDataSource(
             }
 
             // -------------------------------------------------------------
-            // PURGE DELETED GROUPS, EXPENSES & SETTLEMENTS FROM LOCAL ROOM DB
+            // RECONCILE & PURGE REMOTELY DELETED ITEMS FROM LOCAL ROOM DB
             // -------------------------------------------------------------
             val localGroups = groupDao.getAllGroupsSync()
             for (localGroup in localGroups) {
                 if (!remoteGroupIdsForUser.contains(localGroup.id)) {
-                    // Group deleted on Firebase! Purge locally!
-                    groupDao.deleteGroupMembersForGroup(localGroup.id)
-                    expenseDao.deleteExpensesForGroup(localGroup.id)
-                    settlementDao.deleteSettlementsForGroup(localGroup.id)
-                    groupDao.deleteGroup(localGroup.id)
-                    Log.d("FirebaseSync", "Purged remotely deleted group from Room DB: ${localGroup.id}")
+                    if (localGroup.isSynced) {
+                        // Truly deleted on Firebase! Purge locally!
+                        groupDao.deleteGroupMembersForGroup(localGroup.id)
+                        expenseDao.deleteExpensesForGroup(localGroup.id)
+                        settlementDao.deleteSettlementsForGroup(localGroup.id)
+                        groupDao.deleteGroup(localGroup.id)
+                        Log.d("FirebaseSync", "Purged remotely deleted group from Room DB: ${localGroup.id}")
+                    } else {
+                        // Created offline, sync to Firebase!
+                        val members = groupDao.getGroupMembersSync(localGroup.id).map { it.toDomain() }
+                        if (syncGroup(localGroup.toDomain(members))) {
+                            groupDao.markGroupSynced(localGroup.id)
+                            Log.d("FirebaseSync", "Preserved and synced offline group to Firebase: ${localGroup.id}")
+                        }
+                    }
                 } else {
-                    // Group still exists. Purge deleted expenses & settlements for this group!
+                    // Group still exists. Reconcile expenses & settlements for this group!
                     val remoteExpenseIds = remoteExpenseIdsByGroup[localGroup.id] ?: emptySet()
                     val localExpenses = expenseDao.getExpensesForGroupSync(localGroup.id)
                     for (localExp in localExpenses) {
                         if (!remoteExpenseIds.contains(localExp.id)) {
-                            expenseDao.deleteSplitsForExpense(localExp.id)
-                            expenseDao.deleteExpense(localExp.id)
-                            Log.d("FirebaseSync", "Purged remotely deleted expense from Room DB: ${localExp.id}")
+                            if (localExp.isSynced) {
+                                // Truly deleted remotely!
+                                expenseDao.deleteSplitsForExpense(localExp.id)
+                                expenseDao.deleteExpense(localExp.id)
+                                Log.d("FirebaseSync", "Purged remotely deleted expense from Room DB: ${localExp.id}")
+                            } else {
+                                // Created offline! Do NOT purge! Sync to Firebase!
+                                val splits = expenseDao.getSplitsForExpense(localExp.id).map { it.toDomain() }
+                                if (syncExpense(localExp.toDomain(splits))) {
+                                    expenseDao.markExpenseSynced(localExp.id)
+                                    Log.d("FirebaseSync", "Preserved and synced offline expense to Firebase: ${localExp.id}")
+                                }
+                            }
                         }
                     }
 
@@ -376,8 +485,15 @@ class RealtimeDatabaseDataSource(
                     val localSettlements = settlementDao.getSettlementsForGroupSync(localGroup.id)
                     for (localSet in localSettlements) {
                         if (!remoteSettlementIds.contains(localSet.id)) {
-                            settlementDao.deleteSettlement(localSet.id)
-                            Log.d("FirebaseSync", "Purged remotely deleted settlement from Room DB: ${localSet.id}")
+                            if (localSet.isSynced) {
+                                settlementDao.deleteSettlement(localSet.id)
+                                Log.d("FirebaseSync", "Purged remotely deleted settlement from Room DB: ${localSet.id}")
+                            } else {
+                                if (syncSettlement(localSet.toDomain())) {
+                                    settlementDao.markSettlementSynced(localSet.id)
+                                    Log.d("FirebaseSync", "Preserved and synced offline settlement to Firebase: ${localSet.id}")
+                                }
+                            }
                         }
                     }
                 }
@@ -519,6 +635,9 @@ class RealtimeDatabaseDataSource(
                 database.getReference("users").child(activeUserId).setValue(memberMap).await()
             } catch (_: Exception) {}
 
+            // Subscribe to FCM topic for this group
+            com.asim.splitmate.core.notification.NotificationHelper.subscribeToGroupTopic(targetGroupId)
+
             // Fetch and sync all remote group data to local database
             fetchAndSyncRemoteData(activeUserId, nameToUse, groupDao, userDao, expenseDao, settlementDao)
 
@@ -558,10 +677,81 @@ class RealtimeDatabaseDataSource(
         }
     }
 
+    suspend fun syncPendingLocalData(
+        groupDao: GroupDao,
+        expenseDao: ExpenseDao,
+        settlementDao: SettlementDao
+    ) {
+        if (networkMonitor?.isCurrentlyOnline() == false) {
+            Log.d("FirebaseSync", "Offline: Skipping syncPendingLocalData")
+            return
+        }
+
+        // 1. Process pending offline deletions
+        syncDao?.let { sDao ->
+            val pendingDeletions = sDao.getAllPendingDeletions()
+            for (deletion in pendingDeletions) {
+                try {
+                    when (deletion.type) {
+                        "EXPENSE" -> deleteExpense(deletion.groupId, deletion.id)
+                        "GROUP" -> deleteGroup(deletion.id)
+                        "SETTLEMENT" -> deleteSettlement(deletion.groupId, deletion.id)
+                    }
+                    sDao.removePendingDeletion(deletion.id)
+                    Log.d("FirebaseSync", "Processed offline deletion for ${deletion.type}: ${deletion.id}")
+                } catch (e: Exception) {
+                    Log.e("FirebaseSync", "Error processing deletion ${deletion.id}: ${e.message}")
+                }
+            }
+        }
+
+        // 2. Sync unsynced groups
+        val unsyncedGroups = groupDao.getUnsyncedGroups()
+        for (groupEntity in unsyncedGroups) {
+            try {
+                val members = groupDao.getGroupMembersSync(groupEntity.id).map { it.toDomain() }
+                if (syncGroup(groupEntity.toDomain(members))) {
+                    groupDao.markGroupSynced(groupEntity.id)
+                    Log.d("FirebaseSync", "Synced offline group to Firebase: ${groupEntity.id}")
+                }
+            } catch (e: Exception) {
+                Log.e("FirebaseSync", "Failed to sync pending group ${groupEntity.id}: ${e.message}")
+            }
+        }
+
+        // 3. Sync unsynced expenses
+        val unsyncedExpenses = expenseDao.getUnsyncedExpenses()
+        for (expenseEntity in unsyncedExpenses) {
+            try {
+                val splits = expenseDao.getSplitsForExpense(expenseEntity.id).map { it.toDomain() }
+                val domainExpense = expenseEntity.toDomain(splits)
+                if (syncExpense(domainExpense)) {
+                    expenseDao.markExpenseSynced(expenseEntity.id)
+                    Log.d("FirebaseSync", "Synced offline expense to Firebase: ${expenseEntity.id} (${domainExpense.title})")
+                }
+            } catch (e: Exception) {
+                Log.e("FirebaseSync", "Failed to sync pending expense ${expenseEntity.id}: ${e.message}")
+            }
+        }
+
+        // 4. Sync unsynced settlements
+        val unsyncedSettlements = settlementDao.getUnsyncedSettlements()
+        for (settlementEntity in unsyncedSettlements) {
+            try {
+                if (syncSettlement(settlementEntity.toDomain())) {
+                    settlementDao.markSettlementSynced(settlementEntity.id)
+                    Log.d("FirebaseSync", "Synced offline settlement to Firebase: ${settlementEntity.id}")
+                }
+            } catch (e: Exception) {
+                Log.e("FirebaseSync", "Failed to sync pending settlement ${settlementEntity.id}: ${e.message}")
+            }
+        }
+    }
+
     suspend fun syncGroup(group: Group): Boolean {
         if (networkMonitor?.isCurrentlyOnline() == false) {
-            Log.d("FirebaseSync", "Offline: Skipping remote group sync")
-            return true
+            Log.d("FirebaseSync", "Offline: Stored group locally, will sync when online: ${group.id}")
+            return false
         }
         return try {
             val database = db ?: run {
@@ -644,9 +834,13 @@ class RealtimeDatabaseDataSource(
         }
     }
 
-    fun syncExpense(expense: Expense) {
-        if (networkMonitor?.isCurrentlyOnline() == false) return
-        try {
+    suspend fun syncExpense(expense: Expense): Boolean {
+        if (networkMonitor?.isCurrentlyOnline() == false) {
+            Log.d("FirebaseSync", "Offline: Stored expense locally, will sync when online: ${expense.id}")
+            return false
+        }
+        return try {
+            val database = db ?: return false
             val splitsList = expense.splits.map { split ->
                 mapOf(
                     "userId" to split.userId,
@@ -656,8 +850,8 @@ class RealtimeDatabaseDataSource(
                     "shares" to split.shares
                 )
             }
-            db?.getReference("groups")?.child(expense.groupId)
-                ?.child("expenses")?.child(expense.id)?.setValue(
+            database.getReference("groups").child(expense.groupId)
+                .child("expenses").child(expense.id).setValue(
                     mapOf(
                         "id" to expense.id,
                         "groupId" to expense.groupId,
@@ -673,17 +867,24 @@ class RealtimeDatabaseDataSource(
                         "isEdited" to expense.isEdited,
                         "splits" to splitsList
                     )
-                )
+                ).await()
+            Log.d("FirebaseSync", "Successfully synced expense to Firebase: ${expense.id}")
+            true
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("FirebaseSync", "Failed to sync expense ${expense.id}: ${e.message}", e)
+            false
         }
     }
 
-    fun syncSettlement(settlement: Settlement) {
-        if (networkMonitor?.isCurrentlyOnline() == false) return
-        try {
-            db?.getReference("groups")?.child(settlement.groupId)
-                ?.child("settlements")?.child(settlement.id)?.setValue(
+    suspend fun syncSettlement(settlement: Settlement): Boolean {
+        if (networkMonitor?.isCurrentlyOnline() == false) {
+            Log.d("FirebaseSync", "Offline: Stored settlement locally, will sync when online: ${settlement.id}")
+            return false
+        }
+        return try {
+            val database = db ?: return false
+            database.getReference("groups").child(settlement.groupId)
+                .child("settlements").child(settlement.id).setValue(
                     mapOf(
                         "id" to settlement.id,
                         "groupId" to settlement.groupId,
@@ -696,35 +897,56 @@ class RealtimeDatabaseDataSource(
                         "paymentMethod" to settlement.paymentMethod,
                         "notes" to settlement.notes
                     )
-                )
+                ).await()
+            Log.d("FirebaseSync", "Successfully synced settlement to Firebase: ${settlement.id}")
+            true
         } catch (e: Exception) {
+            Log.e("FirebaseSync", "Failed to sync settlement ${settlement.id}: ${e.message}", e)
+            false
+        }
+    }
+
+    suspend fun deleteGroup(groupId: String) {
+        if (networkMonitor?.isCurrentlyOnline() == false) {
+            syncDao?.recordPendingDeletion(com.asim.splitmate.data.local.entity.PendingDeletionEntity(id = groupId, groupId = groupId, type = "GROUP"))
+            Log.d("FirebaseSync", "Offline: Recorded pending deletion for group $groupId")
+            return
+        }
+        try {
+            db?.getReference("groups")?.child(groupId)?.removeValue()?.await()
+            syncDao?.removePendingDeletion(groupId)
+        } catch (e: Exception) {
+            syncDao?.recordPendingDeletion(com.asim.splitmate.data.local.entity.PendingDeletionEntity(id = groupId, groupId = groupId, type = "GROUP"))
             e.printStackTrace()
         }
     }
 
-    fun deleteGroup(groupId: String) {
-        if (networkMonitor?.isCurrentlyOnline() == false) return
+    suspend fun deleteExpense(groupId: String, expenseId: String) {
+        if (networkMonitor?.isCurrentlyOnline() == false) {
+            syncDao?.recordPendingDeletion(com.asim.splitmate.data.local.entity.PendingDeletionEntity(id = expenseId, groupId = groupId, type = "EXPENSE"))
+            Log.d("FirebaseSync", "Offline: Recorded pending deletion for expense $expenseId")
+            return
+        }
         try {
-            db?.getReference("groups")?.child(groupId)?.removeValue()
+            db?.getReference("groups")?.child(groupId)?.child("expenses")?.child(expenseId)?.removeValue()?.await()
+            syncDao?.removePendingDeletion(expenseId)
         } catch (e: Exception) {
+            syncDao?.recordPendingDeletion(com.asim.splitmate.data.local.entity.PendingDeletionEntity(id = expenseId, groupId = groupId, type = "EXPENSE"))
             e.printStackTrace()
         }
     }
 
-    fun deleteExpense(groupId: String, expenseId: String) {
-        if (networkMonitor?.isCurrentlyOnline() == false) return
-        try {
-            db?.getReference("groups")?.child(groupId)?.child("expenses")?.child(expenseId)?.removeValue()
-        } catch (e: Exception) {
-            e.printStackTrace()
+    suspend fun deleteSettlement(groupId: String, settlementId: String) {
+        if (networkMonitor?.isCurrentlyOnline() == false) {
+            syncDao?.recordPendingDeletion(com.asim.splitmate.data.local.entity.PendingDeletionEntity(id = settlementId, groupId = groupId, type = "SETTLEMENT"))
+            Log.d("FirebaseSync", "Offline: Recorded pending deletion for settlement $settlementId")
+            return
         }
-    }
-
-    fun deleteSettlement(groupId: String, settlementId: String) {
-        if (networkMonitor?.isCurrentlyOnline() == false) return
         try {
-            db?.getReference("groups")?.child(groupId)?.child("settlements")?.child(settlementId)?.removeValue()
+            db?.getReference("groups")?.child(groupId)?.child("settlements")?.child(settlementId)?.removeValue()?.await()
+            syncDao?.removePendingDeletion(settlementId)
         } catch (e: Exception) {
+            syncDao?.recordPendingDeletion(com.asim.splitmate.data.local.entity.PendingDeletionEntity(id = settlementId, groupId = groupId, type = "SETTLEMENT"))
             e.printStackTrace()
         }
     }

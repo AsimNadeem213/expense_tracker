@@ -8,10 +8,14 @@ val EmeraldDark = Color(0xFF115E59)
 val EmeraldContainer = Color(0xFFCCFBF1)
 
 val CoralOwe = Color(0xFFE11D48)
+val CoralOweDark = Color(0xFFFB7185)
 val CoralOweContainer = Color(0xFFFFE4E6)
+val CoralOweContainerDark = Color(0xFF3B0715)
 
 val GreenOwed = Color(0xFF16A34A)
+val GreenOwedDark = Color(0xFF34D399)
 val GreenOwedContainer = Color(0xFFDCFCE7)
+val GreenOwedContainerDark = Color(0xFF052E16)
 
 val IndigoAccent = Color(0xFF4F46E5)
 val AmberAccent = Color(0xFFD97706)
@@ -29,3 +33,4 @@ val TextSecondaryLight = Color(0xFF64748B)
 
 val TextPrimaryDark = Color(0xFFF8FAFC)
 val TextSecondaryDark = Color(0xFF94A3B8)
+

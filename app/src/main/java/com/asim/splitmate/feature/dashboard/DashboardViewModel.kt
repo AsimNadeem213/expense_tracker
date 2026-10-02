@@ -10,7 +10,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.Immutable
 
+@Immutable
 data class DashboardUiState(
     val summary: DashboardSummary? = null,
     val userName: String = "You",
@@ -41,6 +43,14 @@ class DashboardViewModel(
 
             launch {
                 groupRepository.syncRemoteData(userId)
+            }
+
+            launch {
+                groupRepository.getAllGroups().collect { groups ->
+                    groups.forEach { g ->
+                        com.asim.splitmate.core.notification.NotificationHelper.subscribeToGroupTopic(g.id)
+                    }
+                }
             }
 
             getDashboardDataUseCase.execute(userId).collect { summary ->

@@ -19,8 +19,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.UUID
 
+import androidx.compose.runtime.Immutable
 import com.asim.splitmate.domain.model.Expense
 
+@Immutable
 data class GroupUiState(
     val groups: List<Group> = emptyList(),
     val currentGroup: Group? = null,
@@ -63,6 +65,9 @@ class GroupViewModel(
             } catch (_: Exception) {}
 
             groupRepository.getAllGroups().collect { groups ->
+                groups.forEach { g ->
+                    com.asim.splitmate.core.notification.NotificationHelper.subscribeToGroupTopic(g.id)
+                }
                 _uiState.value = _uiState.value.copy(groups = groups, currentUserId = userId, isLoading = false)
             }
         }
@@ -119,7 +124,10 @@ class GroupViewModel(
 
             val membersList = mutableListOf(currentUser)
             memberNames.filter { it.isNotBlank() }.forEach { mName ->
-                membersList.add(User(id = "usr_" + UUID.randomUUID().toString().take(8), name = mName, email = ""))
+                val trimmed = mName.trim()
+                val email = if (trimmed.contains("@")) trimmed else ""
+                val memberName = if (trimmed.contains("@") && !trimmed.contains(" ")) trimmed.substringBefore("@") else trimmed
+                membersList.add(User(id = "usr_" + UUID.randomUUID().toString().take(8), name = memberName, email = email))
             }
 
             val prefix = name.filter { it.isLetterOrDigit() }.take(3).uppercase().let { if (it.length >= 3) it else "GRP" }
@@ -140,6 +148,7 @@ class GroupViewModel(
 
             when (val res = groupRepository.createGroup(group)) {
                 is Resource.Success -> {
+                    com.asim.splitmate.core.notification.NotificationHelper.subscribeToGroupTopic(group.id)
                     _uiState.value = _uiState.value.copy(isLoading = false, groupCreatedSuccess = true)
                 }
                 is Resource.Error -> {
@@ -168,9 +177,12 @@ class GroupViewModel(
 
             val membersList = mutableListOf(currentUser)
             memberNames.filter { it.isNotBlank() }.forEachIndexed { index, mName ->
+                val trimmed = mName.trim()
                 val existingMember = existingNonCurrentMembers.getOrNull(index)
                 val mId = existingMember?.id ?: ("usr_" + UUID.randomUUID().toString().take(8))
-                membersList.add(User(id = mId, name = mName.trim(), email = existingMember?.email ?: ""))
+                val email = if (trimmed.contains("@")) trimmed else (existingMember?.email ?: "")
+                val memberName = if (trimmed.contains("@") && !trimmed.contains(" ")) trimmed.substringBefore("@") else trimmed
+                membersList.add(User(id = mId, name = memberName, email = email))
             }
 
             val group = Group(

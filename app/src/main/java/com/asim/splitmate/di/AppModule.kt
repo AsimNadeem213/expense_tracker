@@ -44,12 +44,24 @@ val appModule = module {
     single<DispatchersProvider> { DefaultDispatchersProvider() }
 
     // Room Database
+    val migration3To4 = object : androidx.room.migration.Migration(3, 4) {
+        override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE expenses ADD COLUMN isSynced INTEGER NOT NULL DEFAULT 1")
+            db.execSQL("ALTER TABLE groups ADD COLUMN isSynced INTEGER NOT NULL DEFAULT 1")
+            db.execSQL("ALTER TABLE settlements ADD COLUMN isSynced INTEGER NOT NULL DEFAULT 1")
+            db.execSQL("CREATE TABLE IF NOT EXISTS pending_deletions (id TEXT PRIMARY KEY NOT NULL, groupId TEXT NOT NULL, type TEXT NOT NULL)")
+        }
+    }
+
     single {
         Room.databaseBuilder(
             androidContext(),
             ExpenseMateDatabase::class.java,
             Constants.DATABASE_NAME
-        ).fallbackToDestructiveMigration().build()
+        )
+        .addMigrations(migration3To4)
+        .fallbackToDestructiveMigration()
+        .build()
     }
 
     // DAOs
@@ -57,9 +69,10 @@ val appModule = module {
     single { get<ExpenseMateDatabase>().groupDao() }
     single { get<ExpenseMateDatabase>().expenseDao() }
     single { get<ExpenseMateDatabase>().settlementDao() }
+    single { get<ExpenseMateDatabase>().syncDao() }
 
     // Remote (Firebase Realtime Database)
-    single { RealtimeDatabaseDataSource(androidContext(), get()) }
+    single { RealtimeDatabaseDataSource(androidContext(), get(), get()) }
 
     // Repositories
     single<AuthRepository> { AuthRepositoryImpl(get(), get(), get(), androidContext()) }

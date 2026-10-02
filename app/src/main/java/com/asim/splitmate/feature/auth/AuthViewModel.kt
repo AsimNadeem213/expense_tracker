@@ -55,9 +55,17 @@ class AuthViewModel(
         }
     }
 
-    fun register(name: String, email: String, pass: String) {
-        if (name.isBlank() || email.isBlank() || pass.isBlank()) {
+    fun register(name: String, email: String, pass: String, confirmPass: String = pass) {
+        if (name.isBlank() || email.isBlank() || pass.isBlank() || confirmPass.isBlank()) {
             _uiState.value = _uiState.value.copy(error = "Please fill in all fields")
+            return
+        }
+        if (pass != confirmPass) {
+            _uiState.value = _uiState.value.copy(error = "Passwords do not match")
+            return
+        }
+        if (pass.length < 6) {
+            _uiState.value = _uiState.value.copy(error = "Password must be at least 6 characters long")
             return
         }
         viewModelScope.launch {
@@ -87,6 +95,14 @@ class AuthViewModel(
                 is Resource.Loading -> {}
             }
         }
+    }
+
+    fun resetState() {
+        _uiState.value = _uiState.value.copy(
+            isLoading = false,
+            error = null,
+            isSuccess = false
+        )
     }
 
     fun logout() {

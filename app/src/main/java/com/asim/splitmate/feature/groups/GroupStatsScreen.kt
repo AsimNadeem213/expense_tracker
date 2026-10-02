@@ -43,6 +43,10 @@ import com.asim.splitmate.core.utils.CurrencyFormatter
 import com.asim.splitmate.domain.model.Expense
 import com.asim.splitmate.domain.model.Group
 
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.remember
+
+@Immutable
 data class CategorySpend(
     val categoryName: String,
     val colorHex: String,
@@ -51,6 +55,7 @@ data class CategorySpend(
     val percentage: Float
 )
 
+@Immutable
 data class MemberSpend(
     val memberName: String,
     val totalPaid: Double,
@@ -62,37 +67,43 @@ fun GroupStatsScreen(
     group: Group,
     expenses: List<Expense>
 ) {
-    val totalSpending = expenses.sumOf { it.amount }
-    val memberCount = group.members.size.coerceAtLeast(1)
-    val averagePerMember = if (totalSpending > 0) totalSpending / memberCount else 0.0
-    val highestExpense = expenses.maxByOrNull { it.amount }
+    val totalSpending = remember(expenses) { expenses.sumOf { it.amount } }
+    val memberCount = remember(group.members) { group.members.size.coerceAtLeast(1) }
+    val averagePerMember = remember(totalSpending, memberCount) {
+        if (totalSpending > 0) totalSpending / memberCount else 0.0
+    }
+    val highestExpense = remember(expenses) { expenses.maxByOrNull { it.amount } }
 
     // Category breakdown
-    val categorySpends = expenses
-        .groupBy { it.category }
-        .map { (cat, list) ->
-            val sum = list.sumOf { it.amount }
-            val pct = if (totalSpending > 0) (sum / totalSpending).toFloat() else 0f
-            CategorySpend(
-                categoryName = cat.name,
-                colorHex = cat.colorHex,
-                iconName = cat.iconName,
-                totalAmount = sum,
-                percentage = pct
-            )
-        }
-        .sortedByDescending { it.totalAmount }
+    val categorySpends = remember(expenses, totalSpending) {
+        expenses
+            .groupBy { it.category }
+            .map { (cat, list) ->
+                val sum = list.sumOf { it.amount }
+                val pct = if (totalSpending > 0) (sum / totalSpending).toFloat() else 0f
+                CategorySpend(
+                    categoryName = cat.name,
+                    colorHex = cat.colorHex,
+                    iconName = cat.iconName,
+                    totalAmount = sum,
+                    percentage = pct
+                )
+            }
+            .sortedByDescending { it.totalAmount }
+    }
 
     // Member spend breakdown
-    val memberSpends = group.members.map { member ->
-        val paid = expenses.filter { it.paidByUserId == member.id }.sumOf { it.amount }
-        val pct = if (totalSpending > 0) (paid / totalSpending).toFloat() else 0f
-        MemberSpend(
-            memberName = member.name,
-            totalPaid = paid,
-            percentage = pct
-        )
-    }.sortedByDescending { it.totalPaid }
+    val memberSpends = remember(expenses, group.members, totalSpending) {
+        group.members.map { member ->
+            val paid = expenses.filter { it.paidByUserId == member.id }.sumOf { it.amount }
+            val pct = if (totalSpending > 0) (paid / totalSpending).toFloat() else 0f
+            MemberSpend(
+                memberName = member.name,
+                totalPaid = paid,
+                percentage = pct
+            )
+        }.sortedByDescending { it.totalPaid }
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -174,7 +185,7 @@ fun GroupStatsScreen(
                                 text = CurrencyFormatter.format(highestExpense.amount, group.currencySymbol),
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = EmeraldPrimary
+                                color = MaterialTheme.colorScheme.primary
                             )
                         }
                     }
@@ -190,12 +201,16 @@ fun GroupStatsScreen(
                 )
             }
 
-            items(categorySpends) { cat ->
+            items(
+                items = categorySpends,
+                key = { it.categoryName },
+                contentType = { "category_spend" }
+            ) { cat ->
                 val color = parseHexColor(cat.colorHex)
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(
@@ -259,7 +274,11 @@ fun GroupStatsScreen(
                 )
             }
 
-            items(memberSpends) { member ->
+            items(
+                items = memberSpends,
+                key = { it.memberName },
+                contentType = { "member_spend" }
+            ) { member ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -280,7 +299,7 @@ fun GroupStatsScreen(
                                 text = CurrencyFormatter.format(member.totalPaid, group.currencySymbol),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = EmeraldPrimary
+                                color = MaterialTheme.colorScheme.primary
                             )
                         }
                         Spacer(modifier = Modifier.height(8.dp))
@@ -290,8 +309,8 @@ fun GroupStatsScreen(
                                 .fillMaxWidth()
                                 .height(6.dp)
                                 .clip(CircleShape),
-                            color = EmeraldPrimary,
-                            trackColor = EmeraldPrimary.copy(alpha = 0.15f)
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                         )
                     }
                 }
@@ -323,7 +342,7 @@ private fun MetricCard(
                 text = value,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
-                color = EmeraldPrimary
+                color = MaterialTheme.colorScheme.primary
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(

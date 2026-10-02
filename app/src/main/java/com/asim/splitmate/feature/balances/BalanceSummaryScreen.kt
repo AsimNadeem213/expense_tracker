@@ -93,7 +93,11 @@ fun BalanceSummaryScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(state.groups) { grp ->
+                    items(
+                        items = state.groups,
+                        key = { it.id },
+                        contentType = { "group_chip" }
+                    ) { grp ->
                         FilterChip(
                             selected = state.selectedGroup?.id == grp.id,
                             onClick = { viewModel.selectGroup(grp.id) },
@@ -118,7 +122,7 @@ fun BalanceSummaryScreen(
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(20.dp)),
                             colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                         ) {
                             Box(
                                 modifier = Modifier
@@ -166,16 +170,20 @@ fun BalanceSummaryScreen(
                                         text = "✨ All debts settled up in ${grp?.name ?: "this group"}!",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = EmeraldPrimary
+                                        color = MaterialTheme.colorScheme.primary
                                     )
                                 }
                             }
                         }
                     } else {
-                        items(debts) { debt ->
+                        items(
+                            items = debts,
+                            key = { "${it.fromUserId}_${it.toUserId}" },
+                            contentType = { "debt" }
+                        ) { debt ->
                             DebtFlowCard(
                                 debt = debt,
-                                currentUserId = "usr_you",
+                                currentUserId = state.currentUserId,
                                 currencySymbol = grp?.currencySymbol ?: "₹",
                                 onSettleClick = {
                                     if (grp != null) {

@@ -57,7 +57,8 @@ class ExpenseMateApp : Application() {
             currencyCode = "INR",
             createdBy = "usr_you",
             createdAt = System.currentTimeMillis() - 86400000 * 3,
-            inviteCode = "GOA2026"
+            inviteCode = "GOA2026",
+            isSynced = true
         )
 
         groupDao.insertGroup(group1)
@@ -81,6 +82,7 @@ class ExpenseMateApp : Application() {
             date = System.currentTimeMillis() - 86400000 * 2,
             splitType = SplitType.EQUAL.name,
             notes = "Delicious dinner on beach",
+            isSynced = true
         )
         val splits1 = listOf(
             ExpenseSplitEntity("exp_1", "usr_you", "You", 666.67, 33.33, 1),
@@ -102,6 +104,7 @@ class ExpenseMateApp : Application() {
             date = System.currentTimeMillis() - 86400000,
             splitType = SplitType.EQUAL.name,
             notes = "Airport to resort",
+            isSynced = true
         )
         val splits2 = listOf(
             ExpenseSplitEntity("exp_2", "usr_you", "You", 400.0, 33.33, 1),

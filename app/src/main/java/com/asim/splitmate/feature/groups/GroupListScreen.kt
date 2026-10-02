@@ -101,7 +101,10 @@ fun GroupListScreen(
                             onNavigateToQrScanner()
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
                     ) {
                         Icon(
                             imageVector = Icons.Filled.QrCodeScanner,
@@ -200,7 +203,7 @@ fun GroupListScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onNavigateToCreateGroup,
-                containerColor = EmeraldPrimary,
+                containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
                 Icon(Icons.Filled.Add, contentDescription = "Create Group")
@@ -238,21 +241,35 @@ fun GroupListScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
 
-                items(state.groups) { group ->
+                items(
+                    items = state.groups,
+                    key = { it.id },
+                    contentType = { "group" }
+                ) { group ->
                     val currentUserId = state.currentUserId
-                    val isCreator = when {
-                        group.createdBy.isBlank() -> false
-                        currentUserId.isNotBlank() && group.createdBy == currentUserId -> true
-                        else -> {
-                            val currentMember = group.members.find { it.isCurrentUser || (currentUserId.isNotBlank() && it.id == currentUserId) }
-                            currentMember != null && currentMember.id == group.createdBy
+                    val isCreator = remember(group.createdBy, group.members, currentUserId) {
+                        when {
+                            group.createdBy.isBlank() -> false
+                            currentUserId.isNotBlank() && group.createdBy == currentUserId -> true
+                            else -> {
+                                val currentMember = group.members.find { it.isCurrentUser || (currentUserId.isNotBlank() && it.id == currentUserId) }
+                                currentMember != null && currentMember.id == group.createdBy
+                            }
                         }
                     }
+                    val onGroupClick = remember(group.id, onNavigateToGroupDetail) { { onNavigateToGroupDetail(group.id) } }
+                    val onEditClick = remember(group.id, isCreator, onNavigateToEditGroup) {
+                        if (isCreator) { { onNavigateToEditGroup(group.id) } } else null
+                    }
+                    val onDeleteClick = remember(group, isCreator) {
+                        if (isCreator) { { groupToDelete = group } } else null
+                    }
+
                     GroupCard(
                         group = group,
-                        onClick = { onNavigateToGroupDetail(group.id) },
-                        onEditClick = if (isCreator) { { onNavigateToEditGroup(group.id) } } else null,
-                        onDeleteClick = if (isCreator) { { groupToDelete = group } } else null
+                        onClick = onGroupClick,
+                        onEditClick = onEditClick,
+                        onDeleteClick = onDeleteClick
                     )
                 }
             }

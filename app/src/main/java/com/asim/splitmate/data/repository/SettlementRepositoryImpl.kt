@@ -28,9 +28,12 @@ class SettlementRepositoryImpl(
 
     override suspend fun recordSettlement(settlement: Settlement): Resource<Settlement> {
         return try {
-            val entity = SettlementEntity.fromDomain(settlement)
+            val entity = SettlementEntity.fromDomain(settlement, isSynced = false)
             settlementDao.insertSettlement(entity)
-            realtimeDatabaseDataSource.syncSettlement(settlement)
+            val synced = realtimeDatabaseDataSource.syncSettlement(settlement)
+            if (synced) {
+                settlementDao.markSettlementSynced(settlement.id)
+            }
             Resource.Success(settlement)
         } catch (e: Exception) {
             Resource.Error(e.message ?: "Failed to record settlement", e)
@@ -40,9 +43,10 @@ class SettlementRepositoryImpl(
     override suspend fun deleteSettlement(settlementId: String): Resource<Unit> {
         return try {
             val settlement = settlementDao.getSettlementById(settlementId)
+            val groupId = settlement?.groupId ?: ""
             settlementDao.deleteSettlement(settlementId)
-            if (settlement != null) {
-                realtimeDatabaseDataSource.deleteSettlement(settlement.groupId, settlementId)
+            if (groupId.isNotBlank()) {
+                realtimeDatabaseDataSource.deleteSettlement(groupId, settlementId)
             }
             Resource.Success(Unit)
         } catch (e: Exception) {

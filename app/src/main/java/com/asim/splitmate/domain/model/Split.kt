@@ -1,5 +1,7 @@
 package com.asim.splitmate.domain.model
 
+import androidx.compose.runtime.Immutable
+
 enum class SplitType {
     EQUAL,
     EXACT,
@@ -7,6 +9,7 @@ enum class SplitType {
     SHARES
 }
 
+@Immutable
 data class Split(
     val userId: String,
     val userName: String,

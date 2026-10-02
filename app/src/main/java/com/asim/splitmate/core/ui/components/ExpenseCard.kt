@@ -45,7 +45,7 @@ import androidx.compose.material3.Surface
 @Composable
 fun ExpenseCard(
     expense: Expense,
-    currencySymbol: String = "Rs:",
+    currencySymbol: String = com.asim.splitmate.core.common.Constants.DEFAULT_CURRENCY_SYMBOL,
     onClick: () -> Unit = {}
 ) {
     val categoryColor = remember(expense.category.colorHex) { parseHexColor(expense.category.colorHex) }
@@ -55,14 +55,17 @@ fun ExpenseCard(
         "Paid by ${expense.paidByUserName} • ${DateFormatter.formatDate(expense.date)}"
     }
     val categoryBgColor = remember(categoryColor) { categoryColor.copy(alpha = 0.15f) }
+    val outlineColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+    val subtitleColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+    val editedBgColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
 
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(18.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        border = BorderStroke(1.dp, outlineColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -97,7 +100,7 @@ fun ExpenseCard(
                 Text(
                     text = subtitleText,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    color = subtitleColor
                 )
             }
 
@@ -111,13 +114,13 @@ fun ExpenseCard(
                 if (expense.isEdited) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Surface(
-                        color = com.asim.splitmate.core.ui.theme.EmeraldPrimary.copy(alpha = 0.15f),
+                        color = editedBgColor,
                         shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
                             text = "Edited",
                             style = MaterialTheme.typography.labelSmall,
-                            color = com.asim.splitmate.core.ui.theme.EmeraldPrimary,
+                            color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )

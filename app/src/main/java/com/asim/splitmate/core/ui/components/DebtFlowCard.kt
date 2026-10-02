@@ -21,16 +21,21 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.isSystemInDarkTheme
 import com.asim.splitmate.core.ui.theme.CoralOwe
 import com.asim.splitmate.core.ui.theme.CoralOweContainer
-import com.asim.splitmate.core.ui.theme.EmeraldPrimary
+import com.asim.splitmate.core.ui.theme.CoralOweContainerDark
+import com.asim.splitmate.core.ui.theme.CoralOweDark
 import com.asim.splitmate.core.ui.theme.GreenOwed
 import com.asim.splitmate.core.ui.theme.GreenOwedContainer
+import com.asim.splitmate.core.ui.theme.GreenOwedContainerDark
+import com.asim.splitmate.core.ui.theme.GreenOwedDark
 import com.asim.splitmate.core.utils.CurrencyFormatter
 import com.asim.splitmate.domain.model.SimplifiedDebt
 
@@ -45,20 +50,48 @@ fun DebtFlowCard(
     currencySymbol: String = "₹",
     onSettleClick: (SimplifiedDebt) -> Unit = {}
 ) {
-    val isUserDebtor = debt.fromUserId == currentUserId || debt.fromUserId == "usr_you" || debt.fromUserName.equals("You", ignoreCase = true)
-    val isUserCreditor = debt.toUserId == currentUserId || debt.toUserId == "usr_you" || debt.toUserName.equals("You", ignoreCase = true)
-
-    val containerColor = when {
-        isUserDebtor -> CoralOweContainer.copy(alpha = 0.6f)
-        isUserCreditor -> GreenOwedContainer.copy(alpha = 0.6f)
-        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+    val isUserDebtor = remember(debt.fromUserId, debt.fromUserName, currentUserId) {
+        debt.fromUserId == currentUserId || debt.fromUserId == "usr_you" || debt.fromUserName.equals("You", ignoreCase = true)
+    }
+    val isUserCreditor = remember(debt.toUserId, debt.toUserName, currentUserId) {
+        debt.toUserId == currentUserId || debt.toUserId == "usr_you" || debt.toUserName.equals("You", ignoreCase = true)
     }
 
-    val accentColor = when {
-        isUserDebtor -> CoralOwe
-        isUserCreditor -> GreenOwed
-        else -> EmeraldPrimary
+    val isDark = isSystemInDarkTheme()
+    val defaultSurfaceVariant = MaterialTheme.colorScheme.surfaceVariant
+    val containerColor = remember(isUserDebtor, isUserCreditor, defaultSurfaceVariant, isDark) {
+        when {
+            isUserDebtor -> if (isDark) CoralOweContainerDark else CoralOweContainer.copy(alpha = 0.6f)
+            isUserCreditor -> if (isDark) GreenOwedContainerDark else GreenOwedContainer.copy(alpha = 0.6f)
+            else -> defaultSurfaceVariant.copy(alpha = if (isDark) 0.5f else 0.6f)
+        }
     }
+
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val accentColor = remember(isUserDebtor, isUserCreditor, isDark, primaryColor) {
+        when {
+            isUserDebtor -> if (isDark) CoralOweDark else CoralOwe
+            isUserCreditor -> if (isDark) GreenOwedDark else GreenOwed
+            else -> primaryColor
+        }
+    }
+
+    val borderColor = remember(accentColor, isDark) { accentColor.copy(alpha = if (isDark) 0.35f else 0.25f) }
+    val accentAlpha15 = remember(accentColor, isDark) { accentColor.copy(alpha = if (isDark) 0.22f else 0.15f) }
+    val accentAlpha20 = remember(accentColor, isDark) { accentColor.copy(alpha = if (isDark) 0.30f else 0.2f) }
+
+    val fromNameText = remember(isUserDebtor, debt.fromUserName) { if (isUserDebtor) "You" else debt.fromUserName }
+    val toNameText = remember(isUserCreditor, debt.toUserName) { if (isUserCreditor) "You" else debt.toUserName }
+    val labelText = remember(isUserDebtor, isUserCreditor, debt.fromUserName, debt.toUserName) {
+        when {
+            isUserDebtor -> "You owe ${debt.toUserName}"
+            isUserCreditor -> "${debt.fromUserName} owes you"
+            else -> "${debt.fromUserName} owes ${debt.toUserName}"
+        }
+    }
+
+    val formattedAmount = remember(debt.amount, currencySymbol) { CurrencyFormatter.format(debt.amount, currencySymbol) }
+    val subtitleTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
 
     Card(
         modifier = Modifier
@@ -66,7 +99,7 @@ fun DebtFlowCard(
             .clip(RoundedCornerShape(20.dp)),
         colors = CardDefaults.cardColors(containerColor = containerColor),
         shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.25f)),
+        border = BorderStroke(1.dp, borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
@@ -76,11 +109,11 @@ fun DebtFlowCard(
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
-                        color = accentColor.copy(alpha = 0.15f),
+                        color = accentAlpha15,
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
-                            text = if (isUserDebtor) "You" else debt.fromUserName,
+                            text = fromNameText,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
@@ -92,7 +125,7 @@ fun DebtFlowCard(
                         modifier = Modifier
                             .size(24.dp)
                             .clip(CircleShape)
-                            .background(accentColor.copy(alpha = 0.2f)),
+                            .background(accentAlpha20),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -105,11 +138,11 @@ fun DebtFlowCard(
                     Spacer(modifier = Modifier.width(6.dp))
 
                     Surface(
-                        color = accentColor.copy(alpha = 0.15f),
+                        color = accentAlpha15,
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
-                            text = if (isUserCreditor) "You" else debt.toUserName,
+                            text = toNameText,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
@@ -119,21 +152,16 @@ fun DebtFlowCard(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                val label = when {
-                    isUserDebtor -> "You owe ${debt.toUserName}"
-                    isUserCreditor -> "${debt.fromUserName} owes you"
-                    else -> "${debt.fromUserName} owes ${debt.toUserName}"
-                }
                 Text(
-                    text = label,
+                    text = labelText,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    color = subtitleTextColor
                 )
             }
 
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = CurrencyFormatter.format(debt.amount, currencySymbol),
+                    text = formattedAmount,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.ExtraBold,
                     color = accentColor
@@ -141,7 +169,10 @@ fun DebtFlowCard(
                 Spacer(modifier = Modifier.height(6.dp))
                 Button(
                     onClick = { onSettleClick(debt) },
-                    colors = ButtonDefaults.buttonColors(containerColor = accentColor),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = accentColor,
+                        contentColor = if (isDark) androidx.compose.ui.graphics.Color(0xFF0F172A) else androidx.compose.ui.graphics.Color.White
+                    ),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.height(34.dp),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 0.dp)

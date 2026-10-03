@@ -2,7 +2,6 @@ package com.asim.splitmate.domain.usecase
 
 import android.content.Context
 import com.asim.splitmate.core.common.Resource
-import com.asim.splitmate.core.notification.NotificationHelper
 import com.asim.splitmate.core.utils.SplitCalculator
 import com.asim.splitmate.domain.model.Category
 import com.asim.splitmate.domain.model.Expense
@@ -60,11 +59,16 @@ class AddExpenseUseCase(
         val expId = existingExpenseId?.takeIf { it.isNotBlank() }
             ?: ("exp_" + UUID.randomUUID().toString().take(8))
 
-        var originalCreatedBy = createdByUserId?.takeIf { it.isNotBlank() } ?: paidByUser.id
+        val currentAuthUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+        var originalCreatedBy = when {
+            !currentAuthUid.isNullOrBlank() -> currentAuthUid
+            !createdByUserId.isNullOrBlank() && createdByUserId != "usr_you" -> createdByUserId
+            else -> paidByUser.id
+        }
         if (isEditMode) {
             val existing = expenseRepository.getExpenseById(expId)
             if (existing != null && existing.createdBy.isNotBlank()) {
-                val currentUid = createdByUserId?.takeIf { it.isNotBlank() }
+                val currentUid = currentAuthUid ?: createdByUserId?.takeIf { it.isNotBlank() }
                 if (currentUid != null && existing.createdBy != currentUid && !(currentUid == "usr_you" && existing.createdBy.isBlank())) {
                     return Resource.Error("Only the member who added this expense can edit it")
                 }
@@ -91,19 +95,7 @@ class AddExpenseUseCase(
         val result = if (isEditMode) expenseRepository.updateExpense(expense) else expenseRepository.addExpense(expense)
 
         if (result is Resource.Success && !isEditMode) {
-            try {
-                NotificationHelper.subscribeToGroupTopic(groupId)
-                val currentFirebaseUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
-                    ?: expense.createdBy
-                NotificationHelper.sendExpenseNotificationToGroup(
-                    groupId = groupId,
-                    expenseId = expense.id,
-                    createdBy = currentFirebaseUid,
-                    context = context
-                )
-            } catch (e: Exception) {
-                // Ignore non-fatal notification errors
-            }
+            android.util.Log.d("AddExpenseUseCase", "Expense saved successfully")
         }
 
         return result

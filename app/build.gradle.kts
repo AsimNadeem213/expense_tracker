@@ -74,11 +74,10 @@ dependencies {
     implementation(libs.koin.android)
     implementation(libs.koin.androidx.compose)
 
-    // Firebase (Auth, Realtime Database & FCM Messaging)
+    // Firebase (Auth & Realtime Database)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth.ktx)
     implementation(libs.firebase.database.ktx)
-    implementation(libs.firebase.messaging.ktx)
 
     // Apache POI for Excel XLSX Export
     implementation(libs.poi.ooxml)

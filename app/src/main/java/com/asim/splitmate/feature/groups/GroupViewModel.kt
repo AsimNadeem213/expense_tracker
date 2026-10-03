@@ -65,16 +65,12 @@ class GroupViewModel(
             } catch (_: Exception) {}
 
             groupRepository.getAllGroups().collect { groups ->
-                groups.forEach { g ->
-                    com.asim.splitmate.core.notification.NotificationHelper.subscribeToGroupTopic(g.id)
-                }
                 _uiState.value = _uiState.value.copy(groups = groups, currentUserId = userId, isLoading = false)
             }
         }
     }
 
     fun selectGroup(groupId: String) {
-        com.asim.splitmate.core.notification.NotificationHelper.subscribeToGroupTopic(groupId)
         viewModelScope.launch {
             groupRepository.getGroupById(groupId).collect { group ->
                 _uiState.value = _uiState.value.copy(currentGroup = group)
@@ -148,7 +144,6 @@ class GroupViewModel(
 
             when (val res = groupRepository.createGroup(group)) {
                 is Resource.Success -> {
-                    com.asim.splitmate.core.notification.NotificationHelper.subscribeToGroupTopic(group.id)
                     _uiState.value = _uiState.value.copy(isLoading = false, groupCreatedSuccess = true)
                 }
                 is Resource.Error -> {

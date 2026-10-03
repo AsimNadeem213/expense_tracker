@@ -22,7 +22,9 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -124,13 +126,14 @@ fun GroupListScreen(
 
                     OutlinedTextField(
                         value = inviteCodeInput,
-                        onValueChange = { inviteCodeInput = it },
+                        onValueChange = { inviteCodeInput = it.uppercase() },
                         label = { Text("Invite Code") },
                         placeholder = { Text("e.g. TRIP1234") },
                         singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 8.dp)
+                            .padding(top = 8.dp),
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters)
                     )
                 }
             },

@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -166,21 +168,23 @@ fun CreateGroupScreen(
 
                 OutlinedTextField(
                     value = name,
-                    onValueChange = { name = it },
+                    onValueChange = { name = it.replaceFirstChar { c -> c.uppercase() } },
                     label = { Text("Group Name *") },
                     placeholder = { Text("e.g., Goa Trip, Apartment 3B") },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words)
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
                 OutlinedTextField(
                     value = description,
-                    onValueChange = { description = it },
+                    onValueChange = { description = it.replaceFirstChar { c -> c.uppercase() } },
                     label = { Text("Description (Optional)") },
                     modifier = Modifier.fillMaxWidth(),
-                    maxLines = 2
+                    maxLines = 2,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
                 )
             }
 
@@ -278,12 +282,13 @@ fun CreateGroupScreen(
                         ) {
                             OutlinedTextField(
                                 value = memberName,
-                                onValueChange = { memberNames[index] = it },
+                                onValueChange = { memberNames[index] = it.replaceFirstChar { c -> c.uppercase() } },
                                 label = { Text("Member ${index + 2} Name") },
                                 placeholder = { Text("Enter member name") },
                                 modifier = Modifier.weight(1f),
                                 singleLine = true,
-                                enabled = !hasExpenses
+                                enabled = !hasExpenses,
+                                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words)
                             )
                             if (!hasExpenses) {
                                 Spacer(modifier = Modifier.width(4.dp))

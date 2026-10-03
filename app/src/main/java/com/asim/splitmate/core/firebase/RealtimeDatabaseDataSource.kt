@@ -209,7 +209,6 @@ class RealtimeDatabaseDataSource(
                 }
 
                 remoteGroupIdsForUser.add(groupId)
-                com.asim.splitmate.core.notification.NotificationHelper.subscribeToGroupTopic(groupId)
 
                 val groupEntity = GroupEntity(
                     id = groupId,
@@ -634,9 +633,6 @@ class RealtimeDatabaseDataSource(
             try {
                 database.getReference("users").child(activeUserId).setValue(memberMap).await()
             } catch (_: Exception) {}
-
-            // Subscribe to FCM topic for this group
-            com.asim.splitmate.core.notification.NotificationHelper.subscribeToGroupTopic(targetGroupId)
 
             // Fetch and sync all remote group data to local database
             fetchAndSyncRemoteData(activeUserId, nameToUse, groupDao, userDao, expenseDao, settlementDao)

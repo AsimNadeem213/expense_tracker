@@ -43,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.asim.splitmate.core.common.Constants
@@ -234,11 +235,12 @@ fun AddEditExpenseScreen(
 
                 OutlinedTextField(
                     value = title,
-                    onValueChange = { title = it },
+                    onValueChange = { title = it.replaceFirstChar { c -> c.uppercase() } },
                     label = { Text("Description / Title *") },
                     placeholder = { Text("e.g. Dinner, Taxi, Groceries") },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -595,10 +597,11 @@ fun AddEditExpenseScreen(
             item {
                 OutlinedTextField(
                     value = notes,
-                    onValueChange = { notes = it },
+                    onValueChange = { notes = it.replaceFirstChar { c -> c.uppercase() } },
                     label = { Text("Notes (Optional)") },
                     modifier = Modifier.fillMaxWidth(),
-                    maxLines = 2
+                    maxLines = 2,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
                 )
             }
 

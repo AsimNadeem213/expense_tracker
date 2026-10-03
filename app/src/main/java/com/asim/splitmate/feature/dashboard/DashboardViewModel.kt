@@ -45,14 +45,6 @@ class DashboardViewModel(
                 groupRepository.syncRemoteData(userId)
             }
 
-            launch {
-                groupRepository.getAllGroups().collect { groups ->
-                    groups.forEach { g ->
-                        com.asim.splitmate.core.notification.NotificationHelper.subscribeToGroupTopic(g.id)
-                    }
-                }
-            }
-
             getDashboardDataUseCase.execute(userId).collect { summary ->
                 _uiState.value = _uiState.value.copy(
                     summary = summary,

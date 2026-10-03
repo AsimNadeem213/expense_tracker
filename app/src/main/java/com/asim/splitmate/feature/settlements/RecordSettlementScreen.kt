@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.DropdownMenuItem
@@ -204,11 +205,12 @@ fun RecordSettlementScreen(
             item {
                 OutlinedTextField(
                     value = notes,
-                    onValueChange = { notes = it },
+                    onValueChange = { notes = it.replaceFirstChar { c -> c.uppercase() } },
                     label = { Text("Notes (Optional)") },
                     placeholder = { Text("e.g. Paid via Google Pay / Paytm") },
                     modifier = Modifier.fillMaxWidth(),
-                    maxLines = 2
+                    maxLines = 2,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
                 )
             }
 
